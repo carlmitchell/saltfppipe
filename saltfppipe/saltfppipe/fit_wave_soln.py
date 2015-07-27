@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 from astropy.io.fits import open as openfits
 from os.path import join, split, isfile
 from sys import exit as crash
-from gauss_fit import GaussFit, gaussfunc
+from saltfppipe.gauss_fit import GaussFit, gaussfunc
 from saltfppipe.wavelib import get_libraries
-from fpfunc import fpfunc_for_curve_fit
+from saltfppipe.fpfunc import fpfunc_for_curve_fit
 from scipy.optimize.minpack import curve_fit
 from saltfppipe.fpfunc import fpfunc_for_curve_fit_with_t
 
@@ -206,7 +206,7 @@ def fit_wave_soln(fnlist):
                 print "Error! No 'median.fits' file found."
                 crash()
             medimage = openfits(join(split(fnlist[i])[0],"median.fits"))
-            imagelist[i][0].data += -medimage[0].data
+            imagelist[i][1].data += -medimage[0].data
             medimage.close()
             objlist.append(imagelist[i])
     
@@ -215,11 +215,7 @@ def fit_wave_soln(fnlist):
     if arclib is None:
         print "Error! Your filter isn't the wavelength library!"
         crash()
-
-    
-
-
-
+        
     #This next bit fits all of the rings that the user marks
 
     #Fit rings in the object images
@@ -228,7 +224,7 @@ def fit_wave_soln(fnlist):
         radlists.append([])
     i=0
     while True:
-        xgrid, ygrid = np.meshgrid(np.arange(objlist[i][0].data.shape[1]), np.arange(objlist[i][0].data.shape[0]))
+        xgrid, ygrid = np.meshgrid(np.arange(objlist[i][1].data.shape[1]), np.arange(objlist[i][1].data.shape[0]))
         xcen = objlist[i][0].header["FPXCEN"]
         ycen = objlist[i][0].header["FPYCEN"]
         axcen = objlist[i][0].header["FPAXCEN"]
@@ -238,8 +234,8 @@ def fit_wave_soln(fnlist):
         rbins = np.arange(arad-np.int(max(abs(axcen-xcen),abs(aycen-ycen))))+1
         intbins = np.empty_like(rbins)
         for j in range(len(rbins)):
-            intbins[j] = np.median(objlist[i][0].data[np.logical_and(np.logical_and(objlist[i][0].data!=0,rgrid<rbins[j]),rgrid>rbins[j]-1)])
-        ringplot = PlotRingProfile(objlist[i][0].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad], #Data to be plotted. Only want stuff inside aperture
+            intbins[j] = np.median(objlist[i][1].data[np.logical_and(np.logical_and(objlist[i][1].data!=0,rgrid<rbins[j]),rgrid>rbins[j]-1)])
+        ringplot = PlotRingProfile(objlist[i][1].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad], #Data to be plotted. Only want stuff inside aperture
                                    rbins+(xcen-axcen)+arad, #Radii bins shifted to image center
                                    intbins*arad/np.percentile(np.abs(intbins),98)+(ycen-aycen)+arad, #Intensity bins, rescaled and shifted by image center
                                    xcen-axcen+arad, ycen-aycen+arad, #Shifted center
@@ -287,7 +283,7 @@ def fit_wave_soln(fnlist):
         radlists.append([])
     i=0
     while True:
-        xgrid, ygrid = np.meshgrid(np.arange(arclist[i][0].data.shape[1]), np.arange(arclist[i][0].data.shape[0]))
+        xgrid, ygrid = np.meshgrid(np.arange(arclist[i][1].data.shape[1]), np.arange(arclist[i][1].data.shape[0]))
         axcen = arclist[i][0].header["FPAXCEN"]
         aycen = arclist[i][0].header["FPAYCEN"]
         arad = arclist[i][0].header["FPARAD"]
@@ -295,8 +291,8 @@ def fit_wave_soln(fnlist):
         rbins = np.arange(arad-np.int(max(abs(axcen-xcen),abs(aycen-ycen))))+1
         intbins = np.empty_like(rbins)
         for j in range(len(rbins)):
-            intbins[j] = np.median(arclist[i][0].data[np.logical_and(np.logical_and(arclist[i][0].data!=0,rgrid<rbins[j]),rgrid>rbins[j]-1)])
-        ringplot = PlotRingProfile(arclist[i][0].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad], #Data to be plotted. Only want stuff inside aperture
+            intbins[j] = np.median(arclist[i][1].data[np.logical_and(np.logical_and(arclist[i][1].data!=0,rgrid<rbins[j]),rgrid>rbins[j]-1)])
+        ringplot = PlotRingProfile(arclist[i][1].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad], #Data to be plotted. Only want stuff inside aperture
                                    rbins+(xcen-axcen)+arad, #Radii bins shifted to image center
                                    intbins*arad/np.percentile(np.abs(intbins),98)+(ycen-aycen)+arad, #Intensity bins, rescaled and shifted by image center
                                    xcen-axcen+arad, ycen-aycen+arad, #Shifted center
@@ -493,7 +489,5 @@ def fit_wave_soln(fnlist):
     
     #Restore the old keyword shortcut
     plt.rcParams["keymap.save"] = oldsavekey
-    
-    
     
     return

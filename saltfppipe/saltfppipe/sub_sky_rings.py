@@ -167,9 +167,9 @@ def sub_sky_rings(fnlist,medfilelist):
         axcen = imagelist[i][0].header["fpaxcen"]
         aycen = imagelist[i][0].header["fpaycen"]
         #Median subtract it
-        imagelist[i][0].data += -medimage[0].data
+        imagelist[i][1].data += -medimage[0].data
         #Make wavelength array
-        xgrid, ygrid = np.meshgrid(np.arange(imagelist[i][0].data.shape[1]),np.arange(imagelist[i][0].data.shape[0]))
+        xgrid, ygrid = np.meshgrid(np.arange(imagelist[i][1].data.shape[1]),np.arange(imagelist[i][1].data.shape[0]))
         r2grid = (xgrid-xcen)**2+(ygrid-ycen)**2
         wavearraylist.append(wave0list[i]/np.sqrt(1+r2grid/Flist[i]**2))
         #Get the sky wave library
@@ -183,10 +183,10 @@ def sub_sky_rings(fnlist,medfilelist):
         spectrum_wave.append(np.linspace(np.min(wavearraylist[i][r2grid<arad**2]),np.max(wavearraylist[i][r2grid<arad**2]),np.int(((np.max(wavearraylist[i][r2grid<arad**2])-np.min(wavearraylist[i][r2grid<arad**2]))/0.25))))
         spectrum_inty.append(np.zeros_like(spectrum_wave[i][1:]))
         for j in range(len(spectrum_wave[i])-1):
-            spectrum_inty[i][j] = np.median(imagelist[i][0].data[np.logical_and(np.logical_and(imagelist[i][0].data!=0,wavearraylist[i]>spectrum_wave[i][j]),wavearraylist[i]<spectrum_wave[i][j+1])])
+            spectrum_inty[i][j] = np.median(imagelist[i][1].data[np.logical_and(np.logical_and(imagelist[i][1].data!=0,wavearraylist[i]>spectrum_wave[i][j]),wavearraylist[i]<spectrum_wave[i][j+1])])
         spectrum_wave[i] = 0.5*(spectrum_wave[i][:-1]+spectrum_wave[i][1:])
         #Trim the images and arrays to the aperture size
-        imagelist[i][0].data = imagelist[i][0].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad]
+        imagelist[i][1].data = imagelist[i][1].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad]
         wavearraylist[i] = wavearraylist[i][aycen-arad:aycen+arad,axcen-arad:axcen+arad]
         xcenlist.append(arad+xcen-axcen)
         ycenlist.append(arad+ycen-aycen)
@@ -236,7 +236,7 @@ def sub_sky_rings(fnlist,medfilelist):
         fitsigs = np.array(fit[len(waves_to_fit)+1:2*len(waves_to_fit)+1])
         
         #Make the subtracted plot array
-        subarray = imagelist[i][0].data.copy()
+        subarray = imagelist[i][1].data.copy()
         for j in range(len(waves_to_fit)): subarray += -fitintys[j]*nGauss(wavearraylist[i]-waves_to_fit[j],fitsigs[j])
         
         #Figure out which radius each wavelength is at
@@ -253,7 +253,7 @@ def sub_sky_rings(fnlist,medfilelist):
         for j in range(len(waves_to_fit)): fit_Y += fitintys[j]*nGauss(fit_X-waves_to_fit[j], fitsigs[j])
         
         #Plot the image, spectrum, and fit
-        profile_plot = SkyRingPlot(imagelist[i][0].data, subarray,
+        profile_plot = SkyRingPlot(imagelist[i][1].data, subarray,
                                    xcenlist[i], ycenlist[i], radiilist,
                                    spectrum_wave[i], spectrum_inty[i], sub_spec_inty,
                                    fit_X, fit_Y,
@@ -350,11 +350,11 @@ def sub_sky_rings(fnlist,medfilelist):
         arad = image[0].header["fparad"]
         axcen = image[0].header["fpaxcen"]
         aycen = image[0].header["fpaycen"]
-        mask = image[0].data == 0 #For re-correcting chip gaps
+        mask = image[1].data == 0 #For re-correcting chip gaps
         for j in range(len(final_fitted_waves[i])):
-            image[0].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad] += -final_fitted_intys[i][j]*nGauss(wavearraylist[i]-final_fitted_waves[i][j], final_fitted_sigs[i][j])
+            image[1].data[aycen-arad:aycen+arad,axcen-arad:axcen+arad] += -final_fitted_intys[i][j]*nGauss(wavearraylist[i]-final_fitted_waves[i][j], final_fitted_sigs[i][j])
             image[0].header["fpdering"] = "True"
-        image[0].data[mask]=0 #For re-correcting chip gaps
+        image[1].data[mask]=0 #For re-correcting chip gaps
         image.close()
     
     #Restore the old keyword shortcut

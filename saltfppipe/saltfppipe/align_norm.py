@@ -1,12 +1,11 @@
 from astropy.io.fits import open as openfits
 import numpy as np
-from pyraf import iraf
-from saltfppipe.identify_objects import identify_objects, clean_files
 from saltfppipe.fit_sky_level import fit_sky_level
 from sys import exit as crash
-from os.path import isfile
 from os import remove
 import matplotlib.pyplot as plt
+from photutils import daofind, CircularAperture, aperture_photometry
+from pyraf import iraf
 
 class PlotFluxRatios:
     def __init__(self,goodfluxrats,fluxratavg,fluxratsig):
@@ -39,184 +38,10 @@ class PlotFluxRatios:
             plt.close()
         return
     
-def match_objects(coolist,coofile="stars.coo",tolerance=3):
-    """This routine opens a list of coordinate files of the type produced by
-    IRAF's 'daofind' task and looks for objects that appear at roughly the same
-    position across all images. Creates a coordinate file, by default it is
-    'stars.coo'. It is very likely you don't want to call this routine on its
-    own, but rather have align_norm do it for you.
-    
-    Inputs:
-    coolist -> List of strings, each the path to a coordinate file
-    coofile -> Path to the resulting coordinate file. Default 'stars.coo'
-    tolerance -> Number of pixels that objects can differ by and still be
-                 considered the same object. Default 3 pixels.
-    
-    Outputs:
-    coofile -> The path to the resulting coordinate file.
-    
-    """
-    
-    print "Matching objects between images..."
-    
-    #Check to see if the coordinate file already exists
-    if isfile(coofile):
-        while True:
-            yn = raw_input("Coordinate file "+coofile+" already exists. Delete it? (y/n) ")
-            if "n" in yn or "N" in yn: return coofile
-            elif "y" in yn or "Y" in yn:
-                remove(coofile)
-                break
-    
-    #Open each coordinate file and read in the X, Y coordinates
-    xarray = []
-    yarray = []
-    for i in range(len(coolist)):
-        xarray.append([])
-        yarray.append([])
-        infile = open(coolist[i])
-        data = infile.readlines()
-        for j in range(41,len(data)):
-            line = data[j].split()
-            xarray[i].append(float(line[0]))
-            yarray[i].append(float(line[1]))
-        infile.close()
-    
-    #Search for objects that are found in all images
-    xcoo = []
-    ycoo = []
-    for i in range(len(xarray[0])):
-        #For each object in the first image...
-        accept = True
-        for j in range(1,len(xarray)):
-            #For each other image...
-            dist2 = (np.array(xarray[j])-xarray[0][i])**2 + (np.array(yarray[j])-yarray[0][i])**2
-            if min(dist2) > tolerance**2:
-                #There's no object within "tolerance" pixels of that location
-                accept = False
-                break
-        if accept:
-            xcoo.append(xarray[0][i])
-            ycoo.append(yarray[0][i])
-    
-    #Write the coordinates list to file
-    print repr(len(xcoo))+" stars will be written to coordinate file "+coofile+"."
-    outfile = open(coofile, 'w')
-    for i in range(0,len(xcoo)):
-        outfile.write(str(xcoo[i])+' '+str(ycoo[i])+'\n')
-    outfile.close()
-    
-    return coofile
-    
-def do_phot(fnlist,coofile,fwhmlist,skysiglist):
-    """Runs the IRAF 'phot' routine on a series of images to determine their
-    centroid positions and magnitudes. It is very likely you don't want to call
-    this routine on its own, but rather have align_norm do it for you.
-    
-    Inputs:
-    fnlist -> List of strings, each the path to a fits image
-    coofile -> Path to the file containing the coordinate list of stars
-    fwhmlist -> List of the PSF FWHM's for each image
-    skysiglist -> List of the sky background sigmas for each image
-    
-    Outputs:
-    photlist -> List of strings, the paths to the photometry outputs
-    
-    """
-        
-    iraf.noao(_doprint=0)
-    iraf.digiphot(_doprint=0)
-    iraf.apphot(_doprint=0)
-    photlist = []
-    for i in range(len(fnlist)):
-        print "Performing photometry on the stars in image "+fnlist[i]
-        photlist.append(fnlist[i]+".mag")
-        iraf.phot(image=fnlist[i],
-                  skyfile="",
-                  coords=coofile,
-                  output=photlist[i],
-                  interactive="N",
-                  sigma=skysiglist[i],
-                  datamin='INDEF',
-                  datamax='INDEF',
-                  calgorithm='centroid',
-                  cbox=2*fwhmlist[i],
-                  salgorithm='centroid',
-                  annulus=4*fwhmlist[i],
-                  dannulus=6*fwhmlist[i],
-                  apertures=4*fwhmlist[i],
-                  verify='N')
-    
-    return photlist
-    
-def read_phot(photlist):
-    """This routine reads the photometry files produced by IRAF's 'phot' and
-    picks out the (X,Y) coordinates and magnitudes of each star in each image,
-    as well as the uncertainties in magnitudes, and returns them. It is very
-    likely you don't want to call this routine on its own, but rather have
-    align_norm do it for you.
-    
-    Inputs:
-    photlist -> List of paths to photometry files.
-    
-    Outputs:
-    x -> 2D array of x positions of stars
-    y -> 2D array of y positions of stars
-    mag -> 2D array of stellar magnitudes
-    dmag -> 2D array of magnitude uncertainties
-    
-    """
-    
-    x = []
-    y = []
-    mag = []
-    dmag = []
-    flag = []
-    for i in range(len(photlist)):
-        #Open and read the photometry file
-        infile = open(photlist[i])
-        data = infile.readlines()
-        for i in range(75,len(data),5):
-            str2 = data[i+1].split()
-            str5 = data[i+4].split()
-            #Append the values for X, Y, Mag, dMag, and Flag to the lists
-            x.append(float(str2[0]))
-            y.append(float(str2[1]))
-            if str5[4]!='INDEF' and str5[5]!='INDEF':
-                mag.append(float(str5[4]))
-                dmag.append(float(str5[5]))
-                flag.append(True)
-            else:
-                mag.append(0.0)
-                dmag.append(0.0)
-                flag.append(False)
-        infile.close()
-    
-    #Figure out the shape of the resultant arrays and reshape them
-    newshape = (len(photlist),len(x)/len(photlist))
-    x = np.reshape(x,newshape)
-    y = np.reshape(y,newshape)
-    mag = np.reshape(mag,newshape)
-    dmag = np.reshape(dmag,newshape)
-    flag = np.reshape(flag,newshape)
-    
-    #Eliminate any star "columns" that have flags of False.
-    badstars = []
-    for i in range(flag.shape[1]):
-        if sum(flag[:,i])!=len(flag[:,i]):
-            badstars.append(i)
-    for i in badstars[::-1]:
-        x = np.delete(x,i,1)
-        y = np.delete(y,i,1)
-        mag = np.delete(mag,i,1)
-        dmag = np.delete(dmag,i,1)
-
-    return x, y, mag, dmag
-    
-def calc_norm(mag,dmag):
-    """Calculates the normalization values each image must be multiplied by
+def calc_norm(counts,dcounts):
+    """Calculates the normalization values each image must be divided by
     in order to normalize them all to each other, as well as the uncertainty
-    in these values. 
+    in these values.
     
     The routine is interactive, in that it plots the stellar photometry and
     the user can remove troublesome stars from the fit.
@@ -225,39 +50,35 @@ def calc_norm(mag,dmag):
     rather have align_norm do it for you.
     
     Inputs:
-    mag -> Array of stellar magnitudes
-    dmag -> Array of uncertainties
+    counts -> Array of stellar fluxes
+    dcounts -> Array of uncertainties in fluxes
     
     Outputs:
     norm -> List containing normalization values for each image
     dnorm -> Normalization uncertainty for each image
     
     """
-    
 
-    
-    #Convert from magnitudes to flux ratios
-    fluxrats = 10**(0.4*mag)
-    for i in range(fluxrats.shape[1]):
-        fluxrats[:,i] *= 1/np.average(fluxrats[:,i])
+    for i in range(counts.shape[1]):
+        counts[:,i] *= 1/np.median(counts[:,i])
     
     #Interactively plot the star flux ratios
-    goodfluxrats = fluxrats.copy()
+    goodcounts = counts.copy()
     while True:
-        fluxratavg = np.average(goodfluxrats,axis=1)
-        fluxratsig = np.std(goodfluxrats,axis=1)
-        normplot = PlotFluxRatios(goodfluxrats,fluxratavg,fluxratsig)
+        countavg = np.average(goodcounts,axis=1)
+        countsig = np.std(goodcounts,axis=1)
+        normplot = PlotFluxRatios(goodcounts,countavg,countsig)
         if normplot.key == "a": break
-        if normplot.key == "r": goodfluxrats = fluxrats.copy()
+        if normplot.key == "r": goodcounts = counts.copy()
         if normplot.key == "d": 
             #Figure out which point was "nearest" the keypress and delete it
             xcoo = np.int(np.rint(normplot.xcoo))
-            star = np.argmin(np.abs(goodfluxrats[xcoo,:]-normplot.ycoo))
-            goodfluxrats = np.delete(goodfluxrats,star,1)
+            star = np.argmin(np.abs(goodcounts[xcoo,:]-normplot.ycoo))
+            goodcounts = np.delete(goodcounts,star,1)
     
-    return fluxratavg, fluxratsig
+    return countavg, countsig
     
-def align_norm(fnlist,uncertlist=None):
+def align_norm(fnlist,tolerance=3,thresh=3.5):
     """Aligns a set of images to each other, as well as normalizing the images
     to the same average brightness.
     
@@ -282,12 +103,17 @@ def align_norm(fnlist,uncertlist=None):
     
     Inputs:
     fnlist -> List of strings, each the path to a fits image.
-    uncertlist (optional) -> List of paths to uncertainty images.
+    tolerance -> How close two objects can be and still be considered the same
+                 object. Default is 3 pixels.
+    thresh -> Optional. Level above sky background variation to look for objs.
+              Default is 3.5 (times SkySigma). Decrease if center positions
+              aren't being found accurately. Increase for crowded fields to
+              decrease computation time.
     
     """
     
     #Fit for the sky background level
-    _skyavg, skysig = fit_sky_level(fnlist)
+    skyavg, skysig = fit_sky_level(fnlist)
     
     #Get image FWHMs
     fwhm = np.empty(len(fnlist))
@@ -309,32 +135,78 @@ def align_norm(fnlist,uncertlist=None):
             fwhm[i] = image[0].header["fpfwhm"]
             image.close()
     
-    #Identify objects in the fields
-    coolist = identify_objects(fnlist,skysig,fwhm)
+    #Identify the stars in each image
+    xlists = []
+    ylists = []
+    for i in range(len(fnlist)):
+        xlists.append([])
+        ylists.append([])
+        image = openfits(fnlist[i])
+        axcen = image[0].header["fpaxcen"]
+        aycen = image[0].header["fpaycen"]
+        arad = image[0].header["fparad"]
+        sources = daofind(image[1].data-skyavg[i],
+                          fwhm=fwhm[i],
+                          threshold=thresh*skysig[i]).as_array()
+        for j in range(len(sources)):
+            if np.logical_and((sources[j][1]-axcen)**2 + (sources[j][2]-aycen)**2 > 50**2,(sources[j][1]-axcen)**2 + (sources[j][2]-aycen)**2 < (0.95*arad)**2):
+                xlists[i].append(sources[j][1])
+                ylists[i].append(sources[j][2])
+        image.close()
     
     #Match objects between fields
-    coofile = match_objects(coolist)
+    print "Matching objects between images..."
+    xcoo = []
+    ycoo = []
+    for i in range(len(xlists[0])):
+        #For each object in the first image
+        accept = True
+        for j in range(1,len(fnlist)):
+            #For each other image
+            dist2 = (np.array(xlists[j])-xlists[0][i])**2 + (np.array(ylists[j])-ylists[0][i])**2
+            if (min(dist2) > tolerance**2):
+                accept = False
+                break
+        if accept:
+            #We found an object at that position in every image
+            xcoo.append(xlists[0][i])
+            ycoo.append(ylists[0][i])
     
+    #Create coordinate arrays for the photometry and shifting
+    x = np.zeros((len(fnlist),len(xcoo)))
+    y = np.zeros_like(x)
+    for i in range(len(xcoo)):
+        #For every object found in the first image
+        for j in range(len(fnlist)):
+            #Find that object in every image
+            dist2 = (np.array(xlists[j])-xcoo[i])**2 + (np.array(ylists[j])-ycoo[i])**2
+            index = np.argmin(dist2)
+            x[j,i] = xlists[j][index]
+            y[j,i] = ylists[j][index]
+
     #Do aperture photometry on the matched objects
-    photlist = do_phot(fnlist,coofile,fwhm,skysig)
-    
-    #Read the photometry files
-    x, y, mag, dmag = read_phot(photlist)
+    counts = np.zeros_like(x)
+    dcounts = np.zeros_like(x)
+    for i in range(len(fnlist)):
+        image = openfits(fnlist[i])
+        apertures = CircularAperture((x[i],y[i]), r=2*fwhm[i])
+        phot_table = aperture_photometry(image[1].data-skyavg[i],
+                                         apertures,error=np.sqrt(image[2].data))
+        counts[i] = phot_table["aperture_sum"]
+        dcounts[i] = phot_table["aperture_sum_err"]
+        image.close()
     
     #Calculate the normalizations
-    norm, dnorm = calc_norm(mag,dmag)
+    norm, dnorm = calc_norm(counts,dcounts)
     
-    #Normalize the images (and optionally, the uncertainty images)
+    #Normalize the images and adjust the variance plane
     for i in range(len(fnlist)):
         print "Normalizing image "+fnlist[i]
         image = openfits(fnlist[i],mode="update")
-        if not (uncertlist is None):
-            uncimage = openfits(uncertlist[i],mode="update")
-            uncimage[0].data = np.sqrt(norm[i]**2*uncimage[0].data**2 + dnorm[i]**2*image[0].data**2)
-            uncimage.close()
-        image[0].data *= norm[i]
+        image[1].data /= norm[i]
+        image[2].data = image[2].data/norm[i]**2 + image[1].data**2*dnorm[i]**2/norm[i]**2
         image.close()
-    
+        
     #Calculate the shifts
     for i in range(x.shape[1]):
         x[:,i] = -(x[:,i] - x[0,i])
@@ -342,41 +214,131 @@ def align_norm(fnlist,uncertlist=None):
     xshifts = np.average(x,axis=1)
     yshifts = np.average(y,axis=1)
     
-    #Shift the images (and optionally, the uncertainty images)
+    #Shift the images and update headers
     iraf.images(_doprint=0)
     iraf.immatch(_doprint=0)
     for i in range(len(fnlist)):
+        #This is incredibly stupid, but works. Iraf is annoying.
         print "Shifting image "+fnlist[i]
-        iraf.geotran(input=fnlist[i],
-                     output=fnlist[i],
+        iraf.geotran(input=fnlist[i]+"[1]",
+                     output="temp1.fits",
                      geometry="linear",
+                     database="",
+                     transforms="",
+                     xin="INDEF",
+                     yin="INDEF",
                      xshift=xshifts[i],
                      yshift=yshifts[i],
-                     database="",
+                     xout="INDEF",
+                     yout="INDEF",
+                     xmag="INDEF",
+                     ymag="INDEF",
+                     xrotation="INDEF",
+                     yrotation="INDEF",
+                     xmin="INDEF",
+                     xmax="INDEF",
+                     ymin="INDEF",
+                     ymax="INDEF",
+                     xscale=1.0,
+                     yscale=1.0,
+                     ncols="INDEF",
+                     nlines="INDEF",
+                     xsample=1.0,
+                     ysample=1.0,
+                     interpolant="linear",
+                     boundary="nearest",
+                     constant=0.0,
+                     fluxconserve="yes",
+                     nxblock=512,
+                     nyblock=512,
                      verbose="no")
-        if not (uncertlist is None):
-            iraf.geotran(input=uncertlist[i],
-                         output=uncertlist[i],
-                         geometry="linear",
-                         xshift=xshifts[i],
-                         yshift=yshifts[i],
-                         database="",
-                         verbose="no")
-    
-    #Update the image headers
-    for i in range(len(fnlist)):
+        iraf.geotran(input=fnlist[i]+"[2]",
+                     output="temp2.fits",
+                     geometry="linear",
+                     database="",
+                     transforms="",
+                     xin="INDEF",
+                     yin="INDEF",
+                     xshift=xshifts[i],
+                     yshift=yshifts[i],
+                     xout="INDEF",
+                     yout="INDEF",
+                     xmag="INDEF",
+                     ymag="INDEF",
+                     xrotation="INDEF",
+                     yrotation="INDEF",
+                     xmin="INDEF",
+                     xmax="INDEF",
+                     ymin="INDEF",
+                     ymax="INDEF",
+                     xscale=1.0,
+                     yscale=1.0,
+                     ncols="INDEF",
+                     nlines="INDEF",
+                     xsample=1.0,
+                     ysample=1.0,
+                     interpolant="linear",
+                     boundary="nearest",
+                     constant=0.0,
+                     fluxconserve="yes",
+                     nxblock=512,
+                     nyblock=512,
+                     verbose="no")
+        iraf.geotran(input=fnlist[i]+"[3]",
+                     output="temp3.fits",
+                     geometry="linear",
+                     database="",
+                     transforms="",
+                     xin="INDEF",
+                     yin="INDEF",
+                     xshift=xshifts[i],
+                     yshift=yshifts[i],
+                     xout="INDEF",
+                     yout="INDEF",
+                     xmag="INDEF",
+                     ymag="INDEF",
+                     xrotation="INDEF",
+                     yrotation="INDEF",
+                     xmin="INDEF",
+                     xmax="INDEF",
+                     ymin="INDEF",
+                     ymax="INDEF",
+                     xscale=1.0,
+                     yscale=1.0,
+                     ncols="INDEF",
+                     nlines="INDEF",
+                     xsample=1.0,
+                     ysample=1.0,
+                     interpolant="linear",
+                     boundary="nearest",
+                     constant=0.0,
+                     fluxconserve="yes",
+                     nxblock=512,
+                     nyblock=512,
+                     verbose="no")
+        #Open the image in question
         image = openfits(fnlist[i],mode="update")
+        #Update the data arrays with the appropriate shifted frames
+        temp = openfits("temp1.fits")
+        image[1].data = temp[0].data
+        temp.close()
+        temp = openfits("temp2.fits")
+        image[2].data = temp[0].data
+        temp.close()
+        temp = openfits("temp3.fits")
+        image[3].data = temp[0].data
+        image[3].data[image[3].data>0]=1 #Bad pixel adjustment
+        temp.close()
+        #Update the image headers
         image[0].header["fpphot"]="True"
         image[0].header["fpxcen"]+=xshifts[i]
         image[0].header["fpycen"]+=yshifts[i]
         image[0].header["fpaxcen"]+=xshifts[i]
         image[0].header["fpaycen"]+=yshifts[i]
+        #Close the image and delete temp files
         image.close()
-    
-    #Clean up the coordinate file list
-    clean_files(fnlist)
-    remove(coofile)
-    for i in range(len(photlist)):
-        remove(photlist[i])
-    
+        remove("temp1.fits")
+        remove("temp2.fits")
+        remove("temp3.fits")
+
     return

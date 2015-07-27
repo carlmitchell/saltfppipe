@@ -2,7 +2,10 @@ from pyraf import iraf
 from os import remove
 
 def identify_objects(fnlist,skysiglist,fwhmlist,suffix=".coo"):
-    """Runs the IRAF routine 'daofind' to locate objects in a series of images,
+    """
+    DEPRECIATED. THIS ROUTINE NOW DOES NOTHING.
+    
+    Runs the IRAF routine 'daofind' to locate objects in a series of images,
     creating coordinate files.
     
     Inputs:
@@ -37,7 +40,10 @@ def identify_objects(fnlist,skysiglist,fwhmlist,suffix=".coo"):
     return coolist
     
 def clean_files(fnlist,suffix=".coo"):
-    """Deletes the coordinate files produced by identify_objects.
+    """
+    DEPRECIATED. THIS ROUTINE NOW DOES NOTHING.
+
+    Deletes the coordinate files produced by identify_objects.
     
     Inputs:
     fnlist -> List of strings, each the path to a fits image.

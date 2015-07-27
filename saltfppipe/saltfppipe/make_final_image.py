@@ -1,11 +1,11 @@
 import numpy as np
 from astropy.io.fits import open as openfits
-from astropy.io.fits import writeto as writefits
+from astropy.io.fits import ImageHDU
 from sys import exit as crash
 from saltfppipe.fit_sky_level import fit_sky_level
 
-def convolve_uncert(uncertarry, intyarray, kern):
-    """Convolves an uncertainty array by the kernel 'kern'.
+def convolve_variance(vararray, badpixarray, kern):
+    """Convolves a variance array by the kernel 'kern'.
     Ignores pixels with intensity values equal to zero so as to preserve
     user-done masking, chip gaps, aperture masking, etc.
     
@@ -13,43 +13,43 @@ def convolve_uncert(uncertarry, intyarray, kern):
     must be odd in side length, i.e. 1x1, 3x3, 5x5, etc.
     
     Inputs:
-    uncertarray -> Input wavelength array.
-    intyarray -> Input intensity array. Masked values ought to be zero.
+    vararray -> Input variance array.
+    badpixarray -> Input bad pixel array. Bad values ought to be 1.
     kern -> Kernel for the convolution
     
     Outputs:
-    final_uncert -> The convolved uncertainty array
+    final_variance -> The convolved uncertainty array
     
     """
     
-    #A mask for pixels which are nonzero
-    mask = intyarray != 0
+    #A mask for good pixels
+    mask = badpixarray!=1
     
     #Kernel size for looping in the most straightforward way
     ksize = (kern.shape[1]-1)/2
     
     #Image dimensions
-    xsize = intyarray.shape[1]
-    ysize = intyarray.shape[0]
+    xsize = vararray.shape[1]
+    ysize = vararray.shape[0]
     
     #Empty uncertainty and weight arrays to fill while convolving
-    running_unc_sum = np.zeros_like(intyarray)
-    running_wgt_sum = np.zeros_like(intyarray)
+    running_var_sum = np.zeros_like(vararray)
+    running_wgt_sum = np.zeros_like(vararray)
     
     #Loop over the kernel
     for y in range(2*ksize+1):
         for x in range(2*ksize+1):
-            running_unc_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]**2*uncertarry[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]**2
-            running_wgt_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            running_var_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]**2*vararray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            running_wgt_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]**2*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
     
-    #Divide the running uncertainty by the running kernel sum to normalize by
+    #Divide the running variance by the running weight sum to normalize by
     #how much of the kernel we ended up using
-    running_unc_sum[mask] = np.sqrt(running_unc_sum[mask])/running_wgt_sum[mask]
-    running_unc_sum[np.logical_not(mask)]=0
+    running_var_sum[mask] = running_var_sum[mask]/running_wgt_sum[mask]
+    running_var_sum[np.logical_not(mask)] = vararray[np.logical_not(mask)]
     
-    return running_unc_sum
+    return running_var_sum
     
-def convolve_wave(wavearray, intyarray, kern):
+def convolve_wave(wavearray, intyarray, badpixarray, kern):
     """Convolves a wavelength array by the kernel 'kern', weighting the
     convolution by intensity. Ignores pixels with intensity values equal to
     zero so as to preserve user-done masking, chip gaps, aperture masking, etc.
@@ -60,41 +60,42 @@ def convolve_wave(wavearray, intyarray, kern):
     Inputs:
     wavearray -> Input wavelength array.
     intyarray -> Input intensity array. Masked values ought to be zero.
+    badpixarray -> Bad pixel mask. Bad pixels ought to be 1.
     kern -> Kernel for the convolution
     
     Outputs:
     final_wave -> The convolved wavelength array
     
     """    
-
-    #A mask for pixels which are nonzero
-    mask = intyarray != 0
+    
+    #A mask for pixels which are good
+    mask = np.logical_and(badpixarray==0,intyarray!=0)
     
     #Kernel size for looping in the most straightforward way
     ksize = (kern.shape[1]-1)/2
     
     #Image dimensions
-    xsize = intyarray.shape[1]
-    ysize = intyarray.shape[0]
+    xsize = wavearray.shape[1]
+    ysize = wavearray.shape[0]
     
     #Empty wavelength and weight arrays to fill while convolving
-    running_wave_sum = np.zeros_like(intyarray)
-    running_wgt_sum = np.zeros_like(intyarray)
+    running_wave_sum = np.zeros_like(wavearray)
+    running_wgt_sum = np.zeros_like(wavearray)
     
     #Loop over the kernel
     for y in range(2*ksize+1):
         for x in range(2*ksize+1):
-            running_wave_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*wavearray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
-            running_wgt_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            running_wave_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*wavearray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            running_wgt_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
     
     #Divide the running wavelength by the running weight sum to normalize by
     #how much of the kernel we ended up using
     running_wave_sum[mask] = running_wave_sum[mask]/running_wgt_sum[mask]
-    running_wave_sum[np.logical_not(mask)]=0
+    running_wave_sum[np.logical_not(mask)]=wavearray[np.logical_not(mask)]
     
     return running_wave_sum
 
-def convolve_inty(intyarray,kern):
+def convolve_inty(intyarray, badpixarray, kern):
     """Convolves an intensity array by the kernel 'kern'. Ignores pixels with
     values equal to zero so as to preserve user-done masking, chip gaps,
     aperture masking, etc.
@@ -104,6 +105,7 @@ def convolve_inty(intyarray,kern):
     
     Inputs:
     intyarray -> Input intensity array. Masked values ought to be zero.
+    badpixarray -> Input bad pixel mask. Ought to be 1 for bad pixels.
     kern -> Kernel for the convolution
     
     Outputs:
@@ -111,8 +113,8 @@ def convolve_inty(intyarray,kern):
     
     """
     
-    #A mask for pixels which are nonzero
-    mask = intyarray != 0
+    #A mask for pixels which are good
+    mask = np.logical_and(badpixarray==0,intyarray!=0)
     
     #Kernel size for looping in the most straightforward way
     ksize = (kern.shape[1]-1)/2
@@ -128,7 +130,7 @@ def convolve_inty(intyarray,kern):
     #Loop over the kernel
     for y in range(2*ksize+1):
         for x in range(2*ksize+1):
-            running_inty_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            running_inty_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
             running_kern_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
     
     #Divide the running intensity by the running kernel sum to normalize by
@@ -138,10 +140,8 @@ def convolve_inty(intyarray,kern):
     
     return running_inty_sum
 
-def make_final_image(input_image, output_image, output_wave_image,
-                     desired_fwhm,
-                     input_uncert_image=None, output_uncert_image=None,
-                     clobber=False):
+def make_final_image(input_image, output_image,
+                     desired_fwhm, clobber=False):
     """This routine makes the 'final' images for a data cube. At least the paths
     to the input image, output image, and output wavelength image are necessary
     for this. Beyond that, the user may also have the routine create uncertainty
@@ -160,12 +160,9 @@ def make_final_image(input_image, output_image, output_wave_image,
     Inputs:
     input_image -> Path to the input image.
     output_image -> Path to the output image.
-    output_wave_image -> Path to the output wavelength image.
     desired_fwhm -> Desired FWHM for the resultant image to have.
     
     Optional Inputs:
-    input_uncert_image -> Path to the input uncertainty image, if it exists.
-    output_uncert_image -> Path to the output uncertainty image, if it exists.
     clobber -> Overwrite output images if they already exist. Default is False.
     
     """
@@ -176,13 +173,13 @@ def make_final_image(input_image, output_image, output_wave_image,
     skyavg, skysig = fit_sky_level([input_image])
     
     #Open the input image and get various header keywords, crash if necessary
-    intyimage = openfits(input_image)
-    intygrid = intyimage[0].data
-    fwhm = intyimage[0].header.get("fpfwhm")
-    wave0 = intyimage[0].header.get("fpwave0")
-    calf = intyimage[0].header.get("fpcalf")
-    xcen = intyimage[0].header.get("fpxcen")
-    ycen = intyimage[0].header.get("fpycen")
+    image = openfits(input_image)
+    intygrid = image[1].data
+    fwhm = image[0].header.get("fpfwhm")
+    wave0 = image[0].header.get("fpwave0")
+    calf = image[0].header.get("fpcalf")
+    xcen = image[0].header.get("fpxcen")
+    ycen = image[0].header.get("fpycen")
     if fwhm == None: crash("Error! FWHM not measured for image "+input_image+".")
     if wave0 == None or calf == None: crash("Error! Wavelength solution does "+
                                             "not exist for image "+input_image+".")
@@ -190,9 +187,6 @@ def make_final_image(input_image, output_image, output_wave_image,
                                            "image "+input_image+".")
     if fwhm>desired_fwhm: crash("Error! Desired FWHM too low for image "+
                                 input_image+".")
-    
-    #Subtract the sky background from the image
-    intygrid[intygrid!=0] -= skyavg[0]
     
     #Calculate the necessary FWHM for convolution and make the gaussian kernel
     fwhm_conv = np.sqrt(desired_fwhm**2-fwhm**2)
@@ -202,32 +196,45 @@ def make_final_image(input_image, output_image, output_wave_image,
     kern = np.exp(-(kxgrid**2+kygrid**2)/(2*sig**2)) #Gaussian (unnormalized because sig can be 0)
     kern = kern/np.sum(kern) #Normalize the kernel
     
-    #Open and convolve the uncertainty image if one exists. Save the output.
-    if input_uncert_image != None:
-        uncertimage = openfits(input_uncert_image)
-        uncertgrid = uncertimage[0].data
-        #Add the sky background uncertainty to the uncertainty grid
-        uncertgrid[intygrid!=0] = np.sqrt(uncertgrid[intygrid!=0]**2+skysig[0]**2)
-        #Convolve the uncertainties appropriately
-        new_uncert_grid = convolve_uncert(uncertgrid, intygrid, kern)
-        #Write to output file
-        writefits(output_uncert_image,new_uncert_grid,header=uncertimage[0].header,clobber=clobber)
-        uncertimage.close()
-        
-    #Create and convolve the wavelength image. Save the output.
-    xgrid, ygrid = np.meshgrid(np.arange(intyimage[0].data.shape[1]),
-                               np.arange(intyimage[0].data.shape[0]))
+    #Convolve the variance array
+    vargrid = image[2].data
+    badpixgrid = image[3].data
+    #Add the sky background uncertainty to the uncertainty grid
+    vargrid = vargrid+skysig[0]**2
+    #Convolve the variances appropriately
+    new_vargrid = convolve_variance(vargrid, badpixgrid, kern)
+    
+    #Create and convolve the wavelength array
+    xgrid, ygrid = np.meshgrid(np.arange(image[1].data.shape[1]),
+                               np.arange(image[1].data.shape[0]))
     r2grid = (xgrid-xcen)**2 + (ygrid-ycen)**2
     wavegrid = wave0 / np.sqrt(1+r2grid/calf**2)
-    newwavegrid = convolve_wave(wavegrid, intygrid, kern)
-    writefits(output_wave_image,newwavegrid,header=intyimage[0].header,clobber=clobber)
+    new_wavegrid = convolve_wave(wavegrid, intygrid, badpixgrid, kern)
     
-    #Convolve the intensity image. Save the output
-    newintygrid = convolve_inty(intygrid, kern)
-    intyimage[0].header["fpfwhm"] = desired_fwhm #Update header FWHM keyword
-    writefits(output_image,newintygrid,header=intyimage[0].header,clobber=clobber)
+    #Convolve the intensity image
+    new_intygrid = convolve_inty(intygrid, badpixgrid, kern)
+    new_intygrid[new_intygrid==0] = intygrid[new_intygrid==0]
+    image[0].header["fpfwhm"] = desired_fwhm #Update header FWHM keyword
+    
+    #Subtract the sky background from the image
+    intygrid[intygrid!=0] -= skyavg[0]
+    
+    #Create a new fits extension for the wavelength array
+    waveheader = image[2].header.copy()
+    waveheader['EXTVER'] = 4
+    wavehdu = ImageHDU(data = new_wavegrid, header=waveheader, name = "WAVE")
+    image[1].header.set('WAVEEXT', 4, comment='Extension for Wavelength Frame')
+    image.append(wavehdu)
+    
+    #Put all of the convolved images in the right extensions
+    image[1].data = new_intygrid
+    image[2].data = new_vargrid
+    image[4].data = new_wavegrid
+    
+    #Write the output file
+    image.writeto(output_image, clobber=clobber)
     
     #Close images
-    intyimage.close()
+    image.close()
     
     return

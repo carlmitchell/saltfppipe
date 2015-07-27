@@ -1,27 +1,27 @@
 import sys
-from os.path import isdir, isfile, splitext, join, split
-from os import mkdir, listdir
-from shutil import rmtree, copyfile
+from os.path import isdir, isfile, join, split
+from os import mkdir, listdir, remove
+from shutil import rmtree, copyfile, move
 import numpy as np
 import matplotlib.pyplot as plt
-from sys import exit as crash
 from astropy.io.fits import open as openfits
 from scipy.optimize import minimize
 from saltfppipe.aperture_mask import aperture_mask
 from saltfppipe.combine_flat import combine_flat
 from saltfppipe.flatten import flatten
-from saltfppipe.make_single_extension import make_single_extension
 from saltfppipe.find_ghost_centers import find_ghost_centers
-from lacosmicx import lacosmicx
+#from lacosmicx import lacosmicx
 from saltfppipe.deghost import deghost
 from saltfppipe.align_norm import align_norm
-from fit_wave_soln import fit_wave_soln
+from saltfppipe.fit_wave_soln import fit_wave_soln
 from astropy.io.fits import PrimaryHDU
-from gauss_fit import GaussFit
+from saltfppipe.gauss_fit import GaussFit
 from saltfppipe.sub_sky_rings import sub_sky_rings
 from saltfppipe.make_final_image import make_final_image
 from saltfppipe.solar_velocity_shift import solar_velocity_shift
 from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
+from pyraf import iraf
+from zsalt.imred import imred
 
 class Verify_Images_Plot:
     def __init__(self,data,obj_type,flagged,num,total):
@@ -37,14 +37,14 @@ class Verify_Images_Plot:
                                interpolation = "nearest")
         plt.title("Image #"+str(num)+"/"+str(total)+", Press 'q' to quit.\n"+
                   "Object = "+obj_type+", Flagged = "+str(flagged)+"\n"+
-                  "Use Right/Left Arrow Keys to Navigate \n"+
-                  "Up/Down Arrow Keys to Flag Bad Images/Headers")
+                  "Use 'a'/'d' Keys to Navigate \n"+
+                  "'w' and 's' Keys to Flag Bad Images/Headers")
         self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
         plt.tight_layout()
         plt.show()
         
     def keypress(self, event):
-        if event.key in ["left","right","up","down","q"]:
+        if event.key in ["a", "s", "w", "d", "q"]:
             self.key = event.key
             plt.close()
         return
@@ -189,7 +189,7 @@ class Zoom_Mark_Stars_Plot:
         plt.xlim(0,data.shape[1])
         plt.ylim(0,data.shape[0])
         plt.title("Press Z to zoom back out.\n"+
-                  "Press M to mark a star.")
+                  "Press W to mark a star.")
         self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
         plt.show()
     
@@ -197,7 +197,7 @@ class Zoom_Mark_Stars_Plot:
         if event.key == "z":
             plt.close()
             return
-        if event.key == "m" and event.inaxes == self.plot.axes:
+        if event.key == "w" and event.inaxes == self.plot.axes:
             self.xcoo = event.xdata
             self.ycoo = event.ydata
             plt.close()
@@ -230,9 +230,6 @@ class FWHMs_Plot:
         else: self.button = None
         plt.close()
         return
-
-def welcome_message():
-    print "Welcome to the SALT Fabry-Perot pipeline, created by Carl J. Mitchell"
     
 def create_directory(name):
     """Procedure to create a new directory. If the directory already
@@ -272,6 +269,10 @@ def verify_images(fnlist):
     
     """
 
+    #Change pyplot shortcut keys
+    oldsavekey = plt.rcParams["keymap.save"]
+    plt.rcParams["keymap.save"] = ""
+    
     #How many total images are there?
     num_images = len(fnlist)
     flagged = np.zeros(len(fnlist),dtype="bool")
@@ -281,16 +282,16 @@ def verify_images(fnlist):
     while True:
         image = openfits(fnlist[current_num],mode="update")
         image[0].header["fpverify"]="True"
-        verify = Verify_Images_Plot(image[0].data,
+        verify = Verify_Images_Plot(image[1].data,
                              image[0].header["OBJECT"],
                              flagged[current_num],
                              current_num+1,
                              num_images)
         image.close()
-        if verify.key == "left": current_num = current_num-1
-        if verify.key == "right": current_num = current_num+1
-        if verify.key == "up": flagged[current_num] = True
-        if verify.key == "down": flagged[current_num] = False
+        if verify.key == "a": current_num = current_num-1
+        if verify.key == "d": current_num = current_num+1
+        if verify.key == "w": flagged[current_num] = True
+        if verify.key == "s": flagged[current_num] = False
         
         #Breakout condition
         if current_num == -1:
@@ -317,7 +318,7 @@ def verify_images(fnlist):
     for i in range(len(fnlist)):
         if flagged[i]:
             image = openfits(fnlist[i],mode="update")
-            review = Review_Images_Plot(image[0].data,image[0].header["OBJECT"],fnlist[i])
+            review = Review_Images_Plot(image[1].data,image[0].header["OBJECT"],fnlist[i])
             if review.key == "h":
                 #Correct header
                 while True:
@@ -335,6 +336,8 @@ def verify_images(fnlist):
             image.close()
         else: newfnlist.append(fnlist[i])
     
+    plt.rcParams["keymap.save"] = oldsavekey
+
     return newfnlist
     
 def separate_lists(fnlist):
@@ -413,12 +416,12 @@ def get_aperture(path):
 
     image = openfits(path)
     xs, ys = [], []
-    axcen, aycen, arad = image[0].shape[1]/2, image[0].shape[0]/2, 0
-    apguess = np.array([image[0].shape[1]/2,image[0].shape[0]/2,min(image[0].shape[0],image[0].shape[1])/2],dtype='float64')
+    axcen, aycen, arad = image[1].data.shape[1]/2, image[1].data.shape[0]/2, 0
+    apguess = np.array([image[1].data.shape[1]/2,image[1].data.shape[0]/2,min(image[1].data.shape[0],image[1].data.shape[1])/2],dtype='float64')
     while True:
-        click = Click_Near_Aperture_Plot(image[0].data,xs,ys,axcen,aycen,arad)
-        if not (click.xcoo is None) and click.xcoo>26 and click.ycoo>26 and click.xcoo<image[0].data.shape[1]-26 and click.ycoo<image[0].data.shape[0]-26:
-            newclick = Zoom_Aperture_Plot(image[0].data[click.ycoo-25:click.ycoo+25,click.xcoo-25:click.xcoo+25])
+        click = Click_Near_Aperture_Plot(image[1].data,xs,ys,axcen,aycen,arad)
+        if not (click.xcoo is None) and click.xcoo>26 and click.ycoo>26 and click.xcoo<image[1].data.shape[1]-26 and click.ycoo<image[1].data.shape[0]-26:
+            newclick = Zoom_Aperture_Plot(image[1].data[click.ycoo-25:click.ycoo+25,click.xcoo-25:click.xcoo+25])
             if not (newclick.xcoo is None):
                 xs.append(newclick.xcoo+click.xcoo-25)
                 ys.append(newclick.ycoo+click.ycoo-25)
@@ -431,25 +434,25 @@ def get_aperture(path):
     
     return axcen, aycen, arad
     
-def cosmic_ray_remove(fnlist):
-    """Runs the LACosmicx routine on a series of images in order to correct
-    cosmic rays. Creates the header keyword 'fpcosmic' and sets its value to
-    'True'
-    
-    Inputs:
-    fnlist -> A list containing the paths to fits images.
-    
-    """
-    
-    for i in range(len(fnlist)):
-        print "Cosmic-ray correcting image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
-        image = openfits(fnlist[i],mode="update")
-        image[0].header["fpcosmic"] = "True"
-        _mask, image[0].data = lacosmicx(image[0].data,verbose=False,cleantype='idw')
-        image[0].data[np.isnan(image[0].data)]=0
-        image.close()
-    
-    return
+# def cosmic_ray_remove(fnlist):
+#     """Runs the LACosmicx routine on a series of images in order to correct
+#     cosmic rays. Creates the header keyword 'fpcosmic' and sets its value to
+#     'True'
+#     
+#     Inputs:
+#     fnlist -> A list containing the paths to fits images.
+#     
+#     """
+#     
+#     for i in range(len(fnlist)):
+#         print "Cosmic-ray correcting image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
+#         image = openfits(fnlist[i],mode="update")
+#         image[0].header["fpcosmic"] = "True"
+#         _mask, image[0].data = lacosmicx(image[0].data,verbose=False,cleantype='idw')
+#         image[0].data[np.isnan(image[0].data)]=0
+#         image.close()
+#     
+#     return
     
 def measure_fwhm(fnlist):
     """Gets the coordinates for a handful of stars from the user interactively,
@@ -474,7 +477,7 @@ def measure_fwhm(fnlist):
     xcen = imagelist[0][0].header["fpaxcen"]
     ycen = imagelist[0][0].header["fpaycen"]
     arad = imagelist[0][0].header["fparad"]
-    data = imagelist[0][0].data[ycen-arad:ycen+arad,xcen-arad:xcen+arad]
+    data = imagelist[0][1].data[ycen-arad:ycen+arad,xcen-arad:xcen+arad]
     xgrid, ygrid = np.meshgrid( np.arange(50), np.arange(50) )
     starx, stary, starfwhm = [], [], []
     while True:
@@ -493,7 +496,7 @@ def measure_fwhm(fnlist):
                 #Measure the FWHM of that star in every image
                 fwhms = np.zeros(len(fnlist))
                 for i in range(len(fnlist)):
-                    zoomdata = imagelist[i][0].data[plot.ycoo+zoom.ycoo+ycen-arad-50:plot.ycoo+zoom.ycoo+ycen-arad,plot.xcoo+zoom.xcoo+xcen-arad-50:plot.xcoo+zoom.xcoo+xcen-arad]
+                    zoomdata = imagelist[i][1].data[plot.ycoo+zoom.ycoo+ycen-arad-50:plot.ycoo+zoom.ycoo+ycen-arad,plot.xcoo+zoom.xcoo+xcen-arad-50:plot.xcoo+zoom.xcoo+xcen-arad]
                     xpeak = xgrid[zoomdata==np.max(zoomdata)][0]
                     ypeak = ygrid[zoomdata==np.max(zoomdata)][0]
                     xdata = zoomdata[ypeak,:]
@@ -544,7 +547,7 @@ def make_median(fnlist,outfile):
     datalist = []
     for i in range(len(fnlist)):
         imagelist.append(openfits(fnlist[i]))
-        datalist.append(imagelist[i][0].data)
+        datalist.append(imagelist[i][1].data)
     datalist = np.array(datalist)
     
     meddata = np.median(datalist,axis=0)
@@ -557,45 +560,82 @@ def make_median(fnlist,outfile):
     
     return
     
-def pipeline(productdir = "product", mode = "halpha"):
+def pipeline(rawdir = "raw", mode = "halpha"):
     """Runs successive steps of the saltfp data reduction, checking along the
     way to see if each step was successful. This is the main driver program of
     the SALT Fabry-Perot pipeline.
     
     Inputs:
-    productdir -> String, containing the path to the 'product' directory. By
-                  default, this is 'product'
+    rawdir -> String, containing the path to the 'raw' directory. By
+                  default, this is 'raw'
     mode -> Mode for velocity fitting. Currently the only option is H-Alpha
                 line fitting.
                   
     """
     
-    #Print the welcome message
-    welcome_message()
-    
     #Set rest wave based on the mode called
     if mode == "halpha": rest_wave = 6562.81
     
-    #Acquire the list of filenames from the product directory
-    fnlist = sorted(listdir(productdir))
+    #Create product directory
+    if isdir("product"):
+        while True:
+            yn = raw_input("Product directory already exists. Recreate it? (y/n) ")
+            if "n" in yn or "N" in yn: break
+            elif "y" in yn or "Y" in yn:
+                rmtree("product")
+                break
+    if not isdir("product"):
+        #Acquire the list of filenames from the raw directory
+        fnlist = sorted(listdir(rawdir))
+        for i in range(len(fnlist)):
+            fnlist[i] = join(rawdir,fnlist[i])
+        #Run the first two steps of imred on the first image
+        iraf.pysalt(_doprint=0)
+        iraf.saltred(_doprint=0)
+        iraf.saltprepare(fnlist[0], "temp.fits", "", createvar=False, badpixelimage="", clobber=True, logfile="temp.log", verbose=True)
+        iraf.saltbias("temp.fits", "temp.fits", "", subover=True, trim=True, subbias=False, masterbias="", median=False, function="polynomial", order=5,rej_lo=3.0,rej_hi=5.0, niter=10, plotover=False, turbo=False, clobber=True, logfile="temp.log", verbose=True)
+        #Create the bad pixel mask
+        image = openfits("temp.fits")
+        for i in range(1,len(image)):
+            mask = image[i].data!=image[i].data
+            image[i].data = 1*mask
+        image.writeto("badpixmask.fits",clobber="True")
+        image.close()
+        #Remove temporary files
+        remove("temp.fits")
+        remove("temp.log")
+        #Run the raw images through the first few data reduction pipeline steps
+        imred(fnlist, "product", bpmfile = "badpixmask.fits")
+        #Delete the temporary bad pixel mask
+        remove("badpixmask.fits")
+        #Move these raw images into the product directory
+        mkdir("product")
+        fnlist = sorted(listdir("."))
+        for i in range(len(fnlist)):
+            if "mfxgbpP" in fnlist[i]:
+                move(fnlist[i], join("product",fnlist[i]))
+    #List of files in the product directory
+    fnlist = sorted(listdir("product"))
+    for i in range(len(fnlist)): fnlist[i] = join("product",fnlist[i])
     
-    #Convert the images to single-extension fits files
-    # This creates a new directory from scratch in order to preserve the
-    # original 'product' directory.
-    print "Converting images to single extension fits images..."
-    productlist = []
-    singextlist = []
-    for i in range(len(fnlist)):
-        if splitext(fnlist[i])[1] == ".fits":
-            productlist.append(join(productdir,fnlist[i]))
-            singextlist.append(join("singext","s"+fnlist[i]))
-    toggle = create_directory("singext")
-    if toggle:
-        make_single_extension(productlist,singextlist)
-    else: print "Skipping creation of single-extension fits images."
+    #No longer dealing with single-extension fits files
+#     #Convert the images to single-extension fits files
+#     # This creates a new directory from scratch in order to preserve the
+#     # original raw directory.
+#     print "Converting images to single extension fits images..."
+#     productlist = []
+#     singextlist = []
+#     for i in range(len(fnlist)):
+#         if splitext(fnlist[i])[1] == ".fits":
+#             productlist.append(join(rawdir,fnlist[i]))
+#             singextlist.append(join("singext","s"+fnlist[i]))
+#     toggle = create_directory("singext")
+#     if toggle:
+#         make_single_extension(productlist,singextlist)
+#     else: print "Skipping creation of single-extension fits images."
     
     #Manual verification of fits images and headers 
-    firstimage = openfits(singextlist[0])
+    firstimage = openfits(fnlist[0])
     verify = firstimage[0].header.get("fpverify")
     firstimage.close()
     if verify is None:
@@ -605,12 +645,12 @@ def pipeline(productdir = "product", mode = "halpha"):
                 print "Skipping manual verification of image contents (Not recommended)"
                 break
             if "y" in yn or "Y" in yn:
-                singextlist = verify_images(singextlist)
+                fnlist = verify_images(fnlist)
                 break
-    
+        
     #Make separate lists of the different fits files
-    flatlist, list_of_objs, objlists, list_of_filts, filtlists = separate_lists(singextlist)
-    
+    flatlist, list_of_objs, objlists, list_of_filts, filtlists = separate_lists(fnlist)
+
     #Masking of pixels outside the aperture
     firstimage = openfits(objlists[0][0])
     axcen = firstimage[0].header.get("fpaxcen")
@@ -618,34 +658,36 @@ def pipeline(productdir = "product", mode = "halpha"):
     if axcen is None:
         print "Masking pixels outside the RSS aperture..."
         axcen, aycen, arad = get_aperture(objlists[0][0])
-        aperture_mask(singextlist,axcen,aycen,arad,maskvalue=0)
+        aperture_mask(fnlist,axcen,aycen,arad)
     else: print "Images have already been aperture-masked."
     
-    #Cosmic ray removal
-    firstimage = openfits(objlists[0][0])
-    crtoggle = firstimage[0].header.get("fpcosmic")
-    firstimage.close()
-    if crtoggle is None:
-        print "Cosmic-ray correcting images..."
-        cosmic_ray_remove(singextlist)
-    else: print "Images have already been cosmic-ray corrected."
+    #CR Removal is now done in an earlier step (but slower... talk to Steve about this)
+#     #Cosmic ray removal
+#     firstimage = openfits(objlists[0][0])
+#     crtoggle = firstimage[0].header.get("fpcosmic")
+#     firstimage.close()
+#     if crtoggle is None:
+#         print "Cosmic-ray correcting images..."
+#         cosmic_ray_remove(singextlist)
+#     else: print "Images have already been cosmic-ray corrected."
     
-    #Create uncertainty images for the object files
-    uncertlists = []
-    for i in range(len(objlists)):
-        uncertlists.append([])
-        for j in range(len(objlists[i])):
-            uncertlists[i].append(splitext(objlists[i][j])[0]+'_unc'+splitext(objlists[i][j])[1])
-    if not isfile(uncertlists[0][0]):
-        print "Generating uncertainty images..."
-        for i in range(len(objlists)):
-            for j in range(len(objlists[i])):
-                print "Writing uncertainty image "+uncertlists[i][j]
-                image = openfits(objlists[i][j])
-                image[0].data = np.sqrt(image[0].data)
-                image.writeto(uncertlists[i][j])
-                image.close()
-    else: print "Uncertainty images already exist."
+    #Uncertainty images are now an extension
+#     #Create uncertainty images for the object files
+#     uncertlists = []
+#     for i in range(len(objlists)):
+#         uncertlists.append([])
+#         for j in range(len(objlists[i])):
+#             uncertlists[i].append(splitext(objlists[i][j])[0]+'_unc'+splitext(objlists[i][j])[1])
+#     if not isfile(uncertlists[0][0]):
+#         print "Generating uncertainty images..."
+#         for i in range(len(objlists)):
+#             for j in range(len(objlists[i])):
+#                 print "Writing uncertainty image "+uncertlists[i][j]
+#                 image = openfits(objlists[i][j])
+#                 image[0].data = np.sqrt(image[0].data)
+#                 image.writeto(uncertlists[i][j])
+#                 image.close()
+#     else: print "Uncertainty images already exist."
     
     #Image Flattening
     firstimage = openfits(objlists[0][0])
@@ -663,8 +705,7 @@ def pipeline(productdir = "product", mode = "halpha"):
             flatpath = "flat.fits"
         if flatpath != "":
             notflatlist = []
-            for filtlist in filtlists: notflatlist+=filtlist
-            for uncertlist in uncertlists: notflatlist+=uncertlist
+            for objlist in objlists: notflatlist+=objlist
             flatten(notflatlist,flatpath)
         else: print "Skipping image flattening. (Not recommended!)"
     else: print "Images have already been flattened."
@@ -692,21 +733,23 @@ def pipeline(productdir = "product", mode = "halpha"):
     for i in range(len(objlists)):
         firstimage = openfits(objlists[i][0])
         xcen = firstimage[0].header.get("fpxcen")
+        deghosted = firstimage[0].header.get("fpghost")
         firstimage.close()
-        if xcen is None:
-            ghosttog = True
-        else:
-            while True:
-                yn = raw_input("Optical centers already measured for object "+list_of_objs[i]+". Redo this? (y/n) ")
-                if "n" in yn or "N" in yn:
-                    ghosttog = False
-                    break
-                elif "y" in yn or "Y" in yn:
-                    ghosttog = True
-                    break
-        if ghosttog:
-            print "Identifying optical centers for object "+list_of_objs[i]+". This may take a while for crowded fields..."
-            find_ghost_centers(objlists[i])
+        if deghosted is None:
+            if xcen is None:
+                ghosttog = True
+            else:
+                while True:
+                    yn = raw_input("Optical centers already measured for object "+list_of_objs[i]+". Redo this? (y/n) ")
+                    if "n" in yn or "N" in yn:
+                        ghosttog = False
+                        break
+                    elif "y" in yn or "Y" in yn:
+                        ghosttog = True
+                        break
+            if ghosttog:
+                print "Identifying optical centers for object "+list_of_objs[i]+". This may take a while for crowded fields..."
+                find_ghost_centers(objlists[i])
     
     #Deghost images
     firstimage = openfits(objlists[0][0])
@@ -716,9 +759,9 @@ def pipeline(productdir = "product", mode = "halpha"):
         print "Deghosting images..."
         for i in range(len(objlists)):
             for j in range(len(objlists[i])):
-                deghost(objlists[i][j],uncfn=uncertlists[i][j],g=0.04)
+                deghost(objlists[i][j],g=0.04)
     else: print "Images have already been deghosted."
-    
+
     #Make separate directories for each object.
     # This is the first bit since 'singext' to create a new directory, because
     # this is the first point where it's really necessary to start treating the
@@ -739,10 +782,8 @@ def pipeline(productdir = "product", mode = "halpha"):
             mkdir(list_of_objs[i].replace(" ", ""))
             for j in range(len(objlists[i])):
                 copyfile(objlists[i][j],join(list_of_objs[i].replace(" ", ""),split(objlists[i][j])[1]))
-                copyfile(uncertlists[i][j],join(list_of_objs[i].replace(" ", ""),split(uncertlists[i][j])[1]))
         for j in range(len(objlists[i])):
             objlists[i][j] = join(list_of_objs[i].replace(" ", ""),split(objlists[i][j])[1])
-            uncertlists[i][j] = join(list_of_objs[i].replace(" ", ""),split(uncertlists[i][j])[1])
     #Update the filter lists (THIS IS TERRIBLE AND I SHOULD HAVE USED POINTERS AND I'M SO SORRY)
     for i in range(len(filtlists)):
         for j in range(len(filtlists[i])):
@@ -757,9 +798,9 @@ def pipeline(productdir = "product", mode = "halpha"):
         firstimage.close()
         if aligned is None:
             print "Aligning and normalizing images for object "+list_of_objs[i]+"..."
-            align_norm(objlists[i],uncertlist=uncertlists[i])
+            align_norm(objlists[i])
         else: print "Images for object "+list_of_objs[i]+" have already been aligned and normalized."
-    
+        
     #Make a median image for each object
     for i in range(len(objlists)):
         if isfile(join(list_of_objs[i].replace(" ", ""),"median.fits")):
@@ -771,7 +812,7 @@ def pipeline(productdir = "product", mode = "halpha"):
                     make_median(objlists[i],join(list_of_objs[i].replace(" ", ""),"median.fits"))
                     break
         else: make_median(objlists[i],join(list_of_objs[i].replace(" ", ""),"median.fits"))
-    
+
     #Wavelength calibrations
     for i in range(len(list_of_filts)):
         #Do a separate calibration for each filter
@@ -800,8 +841,6 @@ def pipeline(productdir = "product", mode = "halpha"):
         else: print "Sky ring subtraction already done for object "+list_of_objs[i]
     
     #Creation of data cube and convolution to uniform PSF
-    # Data cube is created in a separate directory, which is created if it
-    # does not already exist, or overwritten if the user so chooses
     for i in range(len(objlists)):
         if isdir(list_of_objs[i].replace(" ", "")+"_cube"):
             while True:
@@ -837,36 +876,25 @@ def pipeline(productdir = "product", mode = "halpha"):
             desired_fwhm = user_fwhm
             for j in range(len(objlists[i])):
                 make_final_image(objlists[i][j], #Input image
-                                 join(list_of_objs[i].replace(" ", "")+"_cube",splitext(split(objlists[i][j])[1])[0]+"_inty"+splitext(split(objlists[i][j])[1])[1]), #Output image
-                                 join(list_of_objs[i].replace(" ", "")+"_cube",splitext(split(objlists[i][j])[1])[0]+"_wave"+splitext(split(objlists[i][j])[1])[1]), #Output wave image
+                                 join(list_of_objs[i].replace(" ", "")+"_cube",split(objlists[i][j])[1]), #Output image
                                  desired_fwhm, #Desired final FWHM
-                                 input_uncert_image = uncertlists[i][j], #Input uncertainty image
-                                 output_uncert_image = join(list_of_objs[i].replace(" ", "")+"_cube",split(uncertlists[i][j])[1]), #Output uncertainty image
                                  clobber=True)
     
     #Get final lists for the velocity map fitting for each object
-    final_inty_lists = []
-    final_wave_lists = []
-    final_unc_lists = []
+    final_lists = []
     for i in range(len(list_of_objs)):
-        final_inty_lists.append([])
-        final_wave_lists.append([])
-        final_unc_lists.append([])
-        finalimagelist = sorted(listdir(list_of_objs[i].replace(" ", "")+"_cube"))
-        for j in range(len(finalimagelist)):
-            if "_wave.fits" in finalimagelist[j]: final_wave_lists[i].append(join(list_of_objs[i].replace(" ", "")+"_cube",finalimagelist[j]))
-            elif "_unc.fits" in finalimagelist[j]: final_unc_lists[i].append(join(list_of_objs[i].replace(" ", "")+"_cube",finalimagelist[j]))
-            elif "_inty.fits" in finalimagelist[j]: final_inty_lists[i].append(join(list_of_objs[i].replace(" ", "")+"_cube",finalimagelist[j]))
-    if len(final_wave_lists) != len(final_unc_lists) or len(final_wave_lists) != len(final_inty_lists): crash("Error! Mismatched images in data cube directory!")
+        final_lists.append(sorted(listdir(list_of_objs[i].replace(" ", "")+"_cube")))
+        for j in range(len(final_lists[i])):
+            final_lists[i][j] = join(list_of_objs[i].replace(" ", "")+"_cube",final_lists[i][j])
     
     #Shift to solar velocity frame
     for i in range(len(list_of_objs)):
-        firstimage = openfits(final_wave_lists[i][0])
+        firstimage = openfits(final_lists[i][0])
         velshift = firstimage[0].header.get("fpsolar")
         firstimage.close()
         if velshift is None:
             print "Performing solar velocity shift for object "+list_of_objs[i]+"..."
-            solar_velocity_shift(final_wave_lists[i], rest_wave)
+            solar_velocity_shift(final_lists[i], rest_wave)
         else: print "Solar velocity shift for object "+list_of_objs[i]+" already done."
     
     #Velocity map fitting
@@ -884,12 +912,9 @@ def pipeline(productdir = "product", mode = "halpha"):
     if domap:
         print "Fitting velocity map for object "+list_of_objs[i]+"..."
         if mode == "halpha":
-            fit_velmap_ha_n2_mode(final_wave_lists[i],final_inty_lists[i],
-                                  list_of_objs[i].replace(" ", "")+"_cube",
-                                  uncertlist=final_unc_lists[i])
+            fit_velmap_ha_n2_mode(final_lists[i],
+                                  list_of_objs[i].replace(" ", "")+"_cube")
     
-    #Examine pixels
-
 if __name__ == "__main__":
-    if len(sys.argv)==2: pipeline(productdir=sys.argv[1], mode="halpha")
+    if len(sys.argv)==2: pipeline(rawdir=sys.argv[1], mode="halpha")
     else: pipeline(mode="halpha")

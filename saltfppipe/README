@@ -1,0 +1,55 @@
+################################################################################
+Instructions for installing the SALT FP pipeline in its current form:
+################################################################################
+
+-Make sure the gfortran package is installed, then execute the
+following commands in the download directory:
+> make
+> make clean
+
+-This will create the file "voigtfit.so" which must be in the directory where
+you're running the pipeline code.
+
+-Make sure you have the following python packages installed:
+numpy
+scipy
+matplotlib
+astropy
+photutils
+pyraf
+zsalt
+
+-Many of these are available via "pip install <packagename>" To install zsalt,
+go to https://github.com/crawfordsm/zSALT
+
+-Make sure you have IRAF, Pyraf, and PySALT installed.
+
+-Run the following python command in the download directory:
+python setup.py install
+
+-You may need to run this command as root if your python path is root-protected
+
+-Now the SALT FP pipeline ought to be installed in your python path.
+
+################################################################################
+Instructions for running the pipeline in its current form:
+################################################################################
+
+-Make sure the file "voigtfit.so" is in the file you plan to operate in.
+
+-Open a python terminal (ipython or python), then executethe following:
+>>> import saltfppipe.pipeline
+>>> saltfppipe.pipeline.pipeline(rawdir = "<path_to_raw_directory>")
+Where here <path_to_raw_directory> is the directory containing raw FP image
+data from SALT.
+
+-Alternatively, you may ignore this keyword argument if you are operating in the
+
+directory directly above "raw/". I.e. if "ls" reveals the "raw/" directory, this
+argument can be ignored.
+
+-You may also call the pipeline from command line by using:
+> python <path_to_pipeline_directory>/pipeline.py <path_to_raw_directory>
+
+-Once again, the last argument can be ignored if you are in the directory
+directly above "raw/".

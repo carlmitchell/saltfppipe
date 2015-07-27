@@ -17,9 +17,11 @@ def flatten(fnlist,flatfile):
         print "Flattening image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
         image = openfits(fnlist[i],mode="update")
         image[0].header["fpflat"] = "True"
-        xgrid, ygrid = np.meshgrid(np.arange(image[0].data.shape[1]),np.arange(image[0].data.shape[0]))
-        image[0].data[np.power((xgrid-image[0].header["fpaxcen"]),2)+np.power((ygrid-image[0].header["fpaycen"]),2)<np.power(image[0].header["fparad"],2)] *= 1/flatimage[0].data[np.power((xgrid-image[0].header["fpaxcen"]),2)+np.power((ygrid-image[0].header["fpaycen"]),2)<np.power(image[0].header["fparad"],2)]
-        image[0].data[np.isnan(image[0].data)] = 0
-        image[0].data[np.isinf(image[0].data)] = 0
+        image[1].data *= 1/flatimage[0].data
+        image[3].data *= 1/flatimage[0].data**2
+        image[3].data[np.isnan(image[1].data)] = 1
+        image[1].data[np.isnan(image[1].data)] = 0
+        image[3].data[np.isinf(image[1].data)] = 1
+        image[1].data[np.isinf(image[1].data)] = 0
         image.close()
     flatimage.close()

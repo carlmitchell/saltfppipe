@@ -4,8 +4,8 @@ import sys
 from cStringIO import StringIO
 import numpy as np
 
-def solar_velocity_shift(waveimagelist, restwave):
-    """Opens the wavelength images of a data cube and shifts the wavelengths
+def solar_velocity_shift(imagelist, restwave):
+    """Opens the images of a data cube and shifts the wavelength planes
     so they are shifted to the solar frame. This is accomplished using the
     IRAF task 'rvcorrect'.
     
@@ -19,7 +19,7 @@ def solar_velocity_shift(waveimagelist, restwave):
     values for either will be similar (i.e. the relativistic formula is used)
     
     Inputs:
-    waveimagelist -> List of strings, the paths to *wavelength* images to be
+    imagelist -> List of strings, the paths to wavelength images to be
                      updated.
     restwave -> The rest wavelength of the line you're interested in.
     
@@ -27,9 +27,9 @@ def solar_velocity_shift(waveimagelist, restwave):
     
     c = 299792.458 #in km/s
     
-    for i in range(len(waveimagelist)):
+    for i in range(len(imagelist)):
         sys.stdout = iraf_output = StringIO()
-        image = openfits(waveimagelist[i],mode="update")
+        image = openfits(imagelist[i],mode="update")
         iraf.rvcorrect(header="N",
                        input="N",
                        imupdate="N",
@@ -44,11 +44,11 @@ def solar_velocity_shift(waveimagelist, restwave):
                        mode="a")
         image[0].header["fpsolar"] = float(iraf_output.getvalue().split()[-6])
         iraf_output.close()
-        beta_earth = ((image[0].data/restwave)**2-1) / ((image[0].data/restwave)**2+1)
+        beta_earth = ((image[4].data/restwave)**2-1) / ((image[4].data/restwave)**2+1)
         beta_shift = image[0].header["fpsolar"]/c
         beta_helio = (beta_earth+beta_shift)/(1+beta_earth*beta_shift)
-        image[0].data = restwave*(1+beta_helio)/np.sqrt(1-beta_helio**2)
-        image[0].data[np.isnan(image[0].data)] = 0
+        image[4].data = restwave*(1+beta_helio)/np.sqrt(1-beta_helio**2)
+        image[4].data[np.isnan(image[4].data)] = 0
         image.close()
         
     sys.stdout = sys.__stdout__
