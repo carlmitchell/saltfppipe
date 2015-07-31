@@ -120,7 +120,7 @@ def verify_center(fnlist, objxs, objys, ghoxs, ghoys, xcens, ycens):
         print "All centers approved!"
         return True
     
-def find_ghost_centers(fnlist, tolerance=3, thresh=3.5):
+def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
     """This routine finds the most likely optical center for a series of images
     by attempting to match ghost reflections of stars with their stellar
     counterparts. It can be rather slow if the fields are very dense with stars,
@@ -247,6 +247,7 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=3.5):
     #Determine where in the arrays the best fitting centers are
     bestcenloc = np.where(goodcen==max(goodcen))[0]
     bestxcen, bestycen = np.average(xcen[bestcenloc]), np.average(ycen[bestcenloc])
+    #bestxcen, bestycen = 791, 503
     
     #Now we want to improve the center for each image using the best guesses
     xcenlist = np.zeros(len(fnlist))

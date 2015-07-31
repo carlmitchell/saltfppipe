@@ -24,8 +24,8 @@ def deghost(fn,g=0.04):
     
     #Open the image and check for center coordinates
     image = openfits(fn,mode="update")
-    xcen = image[0].header.get("fpxcen")
-    ycen = image[0].header.get("fpycen")
+    xcen = image[0].header.get("fpxcen")+1
+    ycen = image[0].header.get("fpycen")+1
     if xcen == None:
         print "Error! Image "+fn+" doesn't have center coordinates in header!"
         crash()

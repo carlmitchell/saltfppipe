@@ -27,10 +27,13 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     #Create blank arrays for the velocity+etc fits
     contarray = np.zeros_like(imagelist[0][1].data)
     intyarray = np.zeros_like(imagelist[0][1].data)
-    intyratioarray = np.zeros_like(imagelist[0][1].data)
+    #intyratioarray = np.zeros_like(imagelist[0][1].data)
     wavearray = np.zeros_like(imagelist[0][1].data)
-    two_line_success_array = np.zeros_like(imagelist[0][1].data,dtype="bool")
-    one_line_success_array = np.zeros_like(imagelist[0][1].data,dtype="bool")
+    dcontarray = np.zeros_like(imagelist[0][1].data)
+    dintyarray = np.zeros_like(imagelist[0][1].data)
+    dwavearray = np.zeros_like(imagelist[0][1].data)
+    #two_line_success_array = np.zeros_like(imagelist[0][1].data,dtype="bool")
+    #one_line_success_array = np.zeros_like(imagelist[0][1].data,dtype="bool")
     #Create x and y arrays for the "progress bar"
     numb_updates=20 #Number of progress updates
     xgrid, ygrid = np.meshgrid(np.arange(contarray.shape[1]),np.arange(contarray.shape[0]))
@@ -79,19 +82,27 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
 
             #Fit with voigtfit
             if np.sum(badpixs)<0.5*len(waves):
-                fit,_err,_chi2 = voigtfit.voigtfit(waves,intys,uncerts,voigtfit.voigtguess(waves,intys),[True,True,True,True,True])
+                fit,err,_chi2 = voigtfit.voigtfit(waves,intys,uncerts,voigtfit.voigtguess(waves,intys),[True,True,True,True,True])
                 contarray[y,x] = fit[0]
                 intyarray[y,x] = fit[1]
                 wavearray[y,x] = fit[2]
+                dcontarray[y,x] = err[0]
+                dintyarray[y,x] = err[1]
+                dwavearray[y,x] = err[2]
                 
     #Convert wavelengths to velocities
     velarray = np.zeros_like(wavearray)
+    dvelarray = np.zeros_like(wavearray)
     velarray[wavearray!=0] = 299792.458*((wavearray[wavearray!=0]/6562.81)**2-1)/((wavearray[wavearray!=0]/6562.81)**2+1)
+    dvelarray[wavearray!=0] = 299792.458*(dwavearray[wavearray!=0])/6562.81
     #Save the output images
     writefits(join(outdir,"velocity.fits"), velarray, clobber=clobber)
     writefits(join(outdir,"intensity.fits"), intyarray, clobber=clobber)
-    writefits(join(outdir,"intyratio.fits"), intyratioarray, clobber=clobber)
+    #writefits(join(outdir,"intyratio.fits"), intyratioarray, clobber=clobber)
     writefits(join(outdir,"continuum.fits"), contarray, clobber=clobber)
+    writefits(join(outdir,"dvelocity.fits"), dvelarray, clobber=clobber)
+    writefits(join(outdir,"dcontinuum.fits"), dcontarray, clobber=clobber)
+    writefits(join(outdir,"dintensity.fits"), dintyarray, clobber=clobber)
     #writefits(join(outdir,"2linesuccess.fits"), two_line_success_array, clobber=clobber)
     #writefits(join(outdir,"1linesuccess.fits"), one_line_success_array, clobber=clobber)
     #Close input images

@@ -22,6 +22,7 @@ from saltfppipe.solar_velocity_shift import solar_velocity_shift
 from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
 from pyraf import iraf
 from zsalt.imred import imred
+from saltfppipe.make_clean_map import make_clean_map
 
 class Verify_Images_Plot:
     def __init__(self,data,obj_type,flagged,num,total):
@@ -883,10 +884,10 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     #Get final lists for the velocity map fitting for each object
     final_lists = []
     for i in range(len(list_of_objs)):
-        final_lists.append(sorted(listdir(list_of_objs[i].replace(" ", "")+"_cube")))
-        for j in range(len(final_lists[i])):
-            final_lists[i][j] = join(list_of_objs[i].replace(" ", "")+"_cube",final_lists[i][j])
-    
+        final_lists.append([])
+        for j in range(len(objlists[i])):
+            final_lists[i].append(join(list_of_objs[i].replace(" ", "")+"_cube",split(objlists[i][j])[1]))
+            
     #Shift to solar velocity frame
     for i in range(len(list_of_objs)):
         firstimage = openfits(final_lists[i][0])
@@ -913,8 +914,13 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         print "Fitting velocity map for object "+list_of_objs[i]+"..."
         if mode == "halpha":
             fit_velmap_ha_n2_mode(final_lists[i],
-                                  list_of_objs[i].replace(" ", "")+"_cube")
+                                  list_of_objs[i].replace(" ", "")+"_cube",
+                                  clobber=True)
     
+    #Clean velocity map
+    for i in range(len(list_of_objs)):
+        make_clean_map(list_of_objs[i].replace(" ", "")+"_cube", clobber=True)
+
 if __name__ == "__main__":
     if len(sys.argv)==2: pipeline(rawdir=sys.argv[1], mode="halpha")
     else: pipeline(mode="halpha")

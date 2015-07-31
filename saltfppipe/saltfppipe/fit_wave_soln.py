@@ -275,14 +275,14 @@ def fit_wave_soln(fnlist):
             to.append(objlist[i][0].header["JD"])
             ro.append(radlists[i][j])
             
-    #Fit rings in the ARC images
+    #Fit rings in the ARC images if there are any
     xcen = objlist[0][0].header["FPXCEN"]
     ycen = objlist[0][0].header["FPYCEN"]
     radlists = []
     for i in range(len(arclist)):
         radlists.append([])
     i=0
-    while True:
+    while len(arclist)>0:
         xgrid, ygrid = np.meshgrid(np.arange(arclist[i][1].data.shape[1]), np.arange(arclist[i][1].data.shape[0]))
         axcen = arclist[i][0].header["FPAXCEN"]
         aycen = arclist[i][0].header["FPAYCEN"]
@@ -331,6 +331,12 @@ def fit_wave_soln(fnlist):
             za.append(arclist[i][0].header["ET1Z"])
             ta.append(arclist[i][0].header["JD"])
             ra.append(radlists[i][j])
+    
+    #Print z's, r's, t's for debugging
+#     for i in range(len(za)):
+#         print za[i], ra[i], ta[i]
+#     for i in range(len(zo)):
+#         print zo[i], ro[i], to[i]
     
 #     #Load previous ring fits from a text file - COMMENT THIS OUT LATER
 #     rr,zz,tt = np.loadtxt("test.out",unpack=True)
