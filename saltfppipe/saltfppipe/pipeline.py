@@ -1,5 +1,5 @@
 import sys
-from os.path import isdir, isfile, join, split
+from os.path import isdir, isfile, join, split, splitext
 from os import mkdir, listdir, remove
 from shutil import rmtree, copyfile, move
 import numpy as np
@@ -23,6 +23,7 @@ from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
 from pyraf import iraf
 from zsalt.imred import imred
 from saltfppipe.make_clean_map import make_clean_map
+from saltfppipe.mask_regions import mask_regions
 
 class Verify_Images_Plot:
     def __init__(self,data,obj_type,flagged,num,total):
@@ -613,7 +614,7 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         mkdir("product")
         fnlist = sorted(listdir("."))
         for i in range(len(fnlist)):
-            if "mfxgbpP" in fnlist[i]:
+            if "mfxgbpP" in fnlist[i] and ".fits" in fnlist[i]:
                 move(fnlist[i], join("product",fnlist[i]))
     #List of files in the product directory
     fnlist = sorted(listdir("product"))
@@ -689,6 +690,13 @@ def pipeline(rawdir = "raw", mode = "halpha"):
 #                 image.writeto(uncertlists[i][j])
 #                 image.close()
 #     else: print "Uncertainty images already exist."
+    
+    #Masking bad pixels
+    for objlist in objlists:
+        for i in range(len(objlist)):
+            if isfile(splitext(split(objlist[i])[1])[0]+".reg"):
+                print "Adding regions from file "+splitext(split(objlist[i])[1])[0]+".reg to the bad pixel mask"
+                mask_regions(objlist[i],splitext(split(objlist[i])[1])[0]+".reg")
     
     #Image Flattening
     firstimage = openfits(objlists[0][0])

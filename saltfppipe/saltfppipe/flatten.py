@@ -17,9 +17,9 @@ def flatten(fnlist,flatfile):
         print "Flattening image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
         image = openfits(fnlist[i],mode="update")
         image[0].header["fpflat"] = "True"
-        image[1].data *= 1/flatimage[0].data
-        image[3].data *= 1/flatimage[0].data**2
-        image[3].data[np.isnan(image[1].data)] = 1
+        image[1].data *= 1/flatimage[0].data       #Flatten data
+        image[2].data *= 1/flatimage[0].data**2    #Flatten variance
+        image[3].data[np.isnan(image[1].data)] = 1 #Fix bad pixels:
         image[1].data[np.isnan(image[1].data)] = 0
         image[3].data[np.isinf(image[1].data)] = 1
         image[1].data[np.isinf(image[1].data)] = 0
