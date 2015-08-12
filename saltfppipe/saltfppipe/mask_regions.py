@@ -1,35 +1,37 @@
 import numpy as np
-from astropy.io.fits import open as openfits
 from sys import exit as crash
+from saltfppipe.fp_image_class import FPImage
 
-def mask_circle(array,params):
-    xgrid,ygrid = np.meshgrid(np.arange(array.shape[1])+1,np.arange(array.shape[0])+1)
-    rad2grid = (xgrid-params[0])**2+(ygrid-params[1])**2
-    array[rad2grid<params[2]**2] = 1
+def mask_circle(array,par):
+    xgrid,ygrid = np.meshgrid(np.arange(array.shape[1])+1,
+                              np.arange(array.shape[0])+1)
+    rad2grid = (xgrid-par[0])**2+(ygrid-par[1])**2
+    array[rad2grid<par[2]**2] = 1
     
     return array
 
-def mask_box(array,params):
+def mask_box(array,par):
     
     #Make X and Y arrays
-    xgrid,ygrid = np.meshgrid(np.arange(array.shape[1])+1,np.arange(array.shape[0])+1)
+    xgrid,ygrid = np.meshgrid(np.arange(array.shape[1])+1,
+                              np.arange(array.shape[0])+1)
     
     #Get four vertices
-    params[4]=np.mod(params[4],180)
-    if params[4]>=90:
-        params[4]-=90
-        params[2],params[3]=params[3],params[2]    
-    params[4]*=np.pi/180
-    params[3]*=.5
-    params[2]*=.5
-    (v1x, v1y) = (params[0]+np.cos(params[4])*params[2]+np.sin(params[4])*params[3],
-                  params[1]+np.sin(params[4])*params[2]-np.cos(params[4])*params[3])
-    (v2x, v2y) = (params[0]+np.cos(params[4])*params[2]-np.sin(params[4])*params[3],
-                  params[1]+np.sin(params[4])*params[2]+np.cos(params[4])*params[3])
-    (v3x, v3y) = (params[0]-np.cos(params[4])*params[2]-np.sin(params[4])*params[3],
-                  params[1]-np.sin(params[4])*params[2]+np.cos(params[4])*params[3])
-    (v4x, v4y) = (params[0]-np.cos(params[4])*params[2]+np.sin(params[4])*params[3],
-                  params[1]-np.sin(params[4])*params[2]-np.cos(params[4])*params[3])
+    par[4]=np.mod(par[4],180)
+    if par[4]>=90:
+        par[4]-=90
+        par[2],par[3]=par[3],par[2]    
+    par[4]*=np.pi/180
+    par[3]*=.5
+    par[2]*=.5
+    (v1x, v1y) = (par[0]+np.cos(par[4])*par[2]+np.sin(par[4])*par[3],
+                  par[1]+np.sin(par[4])*par[2]-np.cos(par[4])*par[3])
+    (v2x, v2y) = (par[0]+np.cos(par[4])*par[2]-np.sin(par[4])*par[3],
+                  par[1]+np.sin(par[4])*par[2]+np.cos(par[4])*par[3])
+    (v3x, v3y) = (par[0]-np.cos(par[4])*par[2]-np.sin(par[4])*par[3],
+                  par[1]-np.sin(par[4])*par[2]+np.cos(par[4])*par[3])
+    (v4x, v4y) = (par[0]-np.cos(par[4])*par[2]+np.sin(par[4])*par[3],
+                  par[1]-np.sin(par[4])*par[2]-np.cos(par[4])*par[3])
     
     #Right boundary
     if v1x==v2x: mask = xgrid<v1x
@@ -59,13 +61,14 @@ def mask_box(array,params):
     
     return array
 
-def mask_ellipse(array,params):
-    xgrid,ygrid = np.meshgrid(np.arange(array.shape[1])+1,np.arange(array.shape[0])+1)
-    anglegrid = np.arctan2(ygrid-params[1],xgrid-params[0])-params[4]*np.pi/180
-    radgrid = np.sqrt((xgrid-params[0])**2+(ygrid-params[1])**2)
+def mask_ellipse(array,par):
+    xgrid,ygrid = np.meshgrid(np.arange(array.shape[1])+1,
+                              np.arange(array.shape[0])+1)
+    anglegrid = np.arctan2(ygrid-par[1],xgrid-par[0])-par[4]*np.pi/180
+    radgrid = np.sqrt((xgrid-par[0])**2+(ygrid-par[1])**2)
     newxgrid = radgrid*np.cos(anglegrid)
     newygrid = radgrid*np.sin(anglegrid)
-    array[(newygrid/params[3])**2+(newxgrid/params[2])**2<1]=1
+    array[(newygrid/par[3])**2+(newxgrid/par[2])**2<1]=1
 
     return array
 
@@ -97,44 +100,62 @@ def mask_regions(imagepath,regionpath):
     elif "(" in a[0]: var = "saoimage"
     else: crash("Invalid region file.")
     shapes = []
-    params = []
+    par = []
     if var == "ds9":
         for i in range(3,len(a)):
-            line = a[i].replace("("," ").replace(")"," ").replace(","," ").split()
+            line = a[i]
+            line = line.replace(","," ")
+            line = line.replace("("," ")
+            line = line.replace(")"," ")
+            line = line.split()
             shapes.append(line[0])
             for j in range(1,len(line)): line[j]=float(line[j])
-            params.append(line[1:])
+            par.append(line[1:])
     if var == "pros":
         for i in range(len(a)):
             line = a[i].split()
             shapes.append(line[1])
             for j in range(2,len(line)): line[j]=float(line[j])
-            params.append(line[2:])
+            par.append(line[2:])
     if var == "tng":
         for i in range(1,len(a)):
-            line = a[i].replace("("," ").replace(")"," ").replace("+"," ").replace(","," ").split()
+            line = a[i]
+            line = line.replace("("," ")
+            line = line.replace(")"," ")
+            line = line.replace("+"," ")
+            line = line.replace(","," ")
+            line = line.split()
             shapes.append(line[0])
             for j in range(1,len(line)-2): line[j]=float(line[j])
-            params.append(line[1:-2])
+            par.append(line[1:-2])
     if var == "ciao":
         for i in range(1,len(a)):
-            line = a[i].replace("("," ").replace(")"," ").replace(","," ").replace("rotbox","box").split()
+            line = a[i]
+            line = line.replace("("," ")
+            line = line.replace(")"," ")
+            line = line.replace(","," ")
+            line = line.replace("rotbox","box")
+            line = line.split()
             shapes.append(line[0])
             for j in range(1,len(line)): line[j]=float(line[j])
-            params.append(line[1:])
+            par.append(line[1:])
     if var == "saoimage":
         for i in range(len(a)):
-            line = a[i].replace("("," ").replace(")"," ").replace(","," ").split()
+            line = a[i]
+            line = line.replace("("," ")
+            line = line.replace(")"," ")
+            line = line.replace(","," ")
+            line.split()
             shapes.append(line[0])
             for j in range(1,len(line)): line[j]=float(line[j])
-            params.append(line[1:])
+            par.append(line[1:])
     
     #Open the input image and run it through the various region masks
-    im = openfits(imagepath,mode="update")
+    im = FPImage(imagepath,update=True)
     for i in range(len(shapes)):
-        if shapes[i]=="circle": im[3].data = mask_circle(im[3].data,params[i])
-        elif shapes[i]=="box": im[3].data = mask_box(im[3].data,params[i])
-        elif shapes[i]=="ellipse": im[3].data = mask_ellipse(im[3].data,params[i])
+        if shapes[i]=="circle": im.badp = mask_circle(im.badp,par[i])
+        elif shapes[i]=="box": im.badp = mask_box(im.badp,par[i])
+        elif shapes[i]=="ellipse": im.badp = mask_ellipse(im.badp,par[i])
     
     #Close files
     infile.close()

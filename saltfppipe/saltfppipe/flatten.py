@@ -1,5 +1,6 @@
-from astropy.io.fits import open as openfits
+from astropy.io import fits
 import numpy as np
+from saltfppipe.fp_image_class import FPImage
 
 def flatten(fnlist,flatfile):
     """Flattens a series of images by dividing them by a flatfield image.
@@ -12,16 +13,17 @@ def flatten(fnlist,flatfile):
     
     """
     
-    flatimage = openfits(flatfile)
+    flatimage = fits.open(flatfile)
     for i in range(len(fnlist)):
-        print "Flattening image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
-        image = openfits(fnlist[i],mode="update")
-        image[0].header["fpflat"] = "True"
-        image[1].data *= 1/flatimage[0].data       #Flatten data
-        image[2].data *= 1/flatimage[0].data**2    #Flatten variance
-        image[3].data[np.isnan(image[1].data)] = 1 #Fix bad pixels:
-        image[1].data[np.isnan(image[1].data)] = 0
-        image[3].data[np.isinf(image[1].data)] = 1
-        image[1].data[np.isinf(image[1].data)] = 0
+        print ( "Flattening image "+str(i+1)+
+                " of "+str(len(fnlist))+": "+fnlist[i] )
+        image = FPImage(fnlist[i],update=True)
+        image.flattog = "True"
+        image.inty /= flatimage[0].data       #Flatten data
+        image.vari /= flatimage[0].data**2    #Flatten variance
+        image.badp[np.isnan(image.inty)] = 1  #Fix bad pixels:
+        image.inty[np.isnan(image.inty)] = 0
+        image.badp[np.isinf(image.inty)] = 1
+        image.inty[np.isinf(image.inty)] = 0
         image.close()
     flatimage.close()

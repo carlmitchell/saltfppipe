@@ -1,8 +1,8 @@
 from pyraf import iraf
-from astropy.io.fits import open as openfits
 import sys
 from cStringIO import StringIO
 import numpy as np
+from saltfppipe.fp_image_class import FPImage
 
 def solar_velocity_shift(imagelist, restwave):
     """Opens the images of a data cube and shifts the wavelength planes
@@ -29,26 +29,27 @@ def solar_velocity_shift(imagelist, restwave):
     
     for i in range(len(imagelist)):
         sys.stdout = iraf_output = StringIO()
-        image = openfits(imagelist[i],mode="update")
+        image = FPImage(imagelist[i],update=True)
         iraf.rvcorrect(header="N",
                        input="N",
                        imupdate="N",
                        observatory="SAAO",
-                       year=float(image[0].header["date-obs"].split("-")[0]),
-                       month=float(image[0].header["date-obs"].split("-")[1]),
-                       day=float(image[0].header["date-obs"].split("-")[2]),
-                       ut=image[0].header["utc-obs"],
-                       ra=image[0].header["ra"],
-                       dec=image[0].header["dec"],
+                       year=float(image.datestring.split("-")[0]),
+                       month=float(image.datestring.split("-")[1]),
+                       day=float(image.datestring.split("-")[2]),
+                       ut=image.ut,
+                       ra=image.ra,
+                       dec=image.dec,
                        vobs=0,
                        mode="a")
-        image[0].header["fpsolar"] = float(iraf_output.getvalue().split()[-6])
+        image.solarvel = float(iraf_output.getvalue().split()[-6])
         iraf_output.close()
-        beta_earth = ((image[4].data/restwave)**2-1) / ((image[4].data/restwave)**2+1)
-        beta_shift = image[0].header["fpsolar"]/c
+        beta_earth = ( ((image.wave/restwave)**2-1) / 
+                       ((image.wave/restwave)**2+1) )
+        beta_shift = image.solarvel/c
         beta_helio = (beta_earth+beta_shift)/(1+beta_earth*beta_shift)
-        image[4].data = restwave*(1+beta_helio)/np.sqrt(1-beta_helio**2)
-        image[4].data[np.isnan(image[4].data)] = 0
+        image.wave = restwave*(1+beta_helio)/np.sqrt(1-beta_helio**2)
+        image.wave[np.isnan(image.wave)] = 0
         image.close()
         
     sys.stdout = sys.__stdout__

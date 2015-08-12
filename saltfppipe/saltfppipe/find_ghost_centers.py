@@ -1,15 +1,15 @@
-from astropy.io.fits import open as openfits
 from sys import exit as crash
 import numpy as np
-from saltfppipe.fit_sky_level import fit_sky_level
 import matplotlib.pyplot as plt
 from photutils import daofind
+from saltfppipe.fp_image_class import FPImage
 
 class Verify_Center_Plot:
     def __init__(self,fn,data,flag,xcen,ycen,objx,objy,ghox,ghoy):
         self.key = None
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
+        #Display the image data and set up the plot object
         self.plot = ax1.imshow(data,
                                cmap = "Greys",
                                aspect = "equal",
@@ -21,12 +21,15 @@ class Verify_Center_Plot:
                   "Press 'q' to quit.\n"+
                   "Use 'a'/'d' Keys to Navigate \n"+
                   "Use 'w'/'s' Keys to Flag Bad Center")
+        #Connect the dots for the object/ghost matches
         for i in range(len(objx)):
             plt.plot([objx[i],ghox[i]],[objy[i],ghoy[i]],color="blue")
+        #Mark the center
         plt.scatter([xcen],[ycen],color="red",s=30)
         plt.xlim(0,data.shape[1])
         plt.ylim(0,data.shape[0])
-        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
+        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",
+                                                       self.keypress)
         plt.tight_layout()
         plt.show()
         
@@ -39,15 +42,6 @@ def verify_center(fnlist, objxs, objys, ghoxs, ghoys, xcens, ycens):
     """Displays images and their likely ghost pairs and allows the user to
     call a crash if the center locations aren't good.
     
-    Inputs:
-    fnlist -> List of strings, each the path to a fits image
-    coolist -> List of strings, the paths to coordinate files for each image
-    tolerance -> Maximum distance two points can be away from each other and
-                 still be considered the same point. Default is 3 pixels.
-    
-    Outputs:
-    goodcenters -> Boolean. True if centers are approved. False if not.
-    
     """
     
     #Change pyplot shortcut keys
@@ -55,34 +49,31 @@ def verify_center(fnlist, objxs, objys, ghoxs, ghoys, xcens, ycens):
     plt.rcParams["keymap.save"] = ""
     
     #Make empty lists to load things for plotting
-    imagelist = []
-    datalist = []
-    axcenlist = []
-    aycenlist = []
-    aradlist = []
     flagged = np.zeros(len(fnlist),dtype="bool")
     
     #Open each image, make lists of the objects and ghosts in each image
+    images = [FPImage(fn) for fn in fnlist]
+    axcens = [image.axcen for image in images]
+    aycens = [image.aycen for image in images]
+    arads = [image.arad for image in images]
+    datas = [image.inty[aycen-arad:aycen+arad, axcen-arad:axcen+arad]
+             for (image,axcen,aycen,arad) in zip(images,axcens,aycens,arads)]
+    
+    #Adjust object ghost, and center coordinates because of the aperture mask
     for i in range(len(fnlist)):
-        imagelist.append(openfits(fnlist[i]))
-        axcenlist.append(imagelist[i][0].header["fpaxcen"])
-        aycenlist.append(imagelist[i][0].header["fpaycen"])
-        aradlist.append(imagelist[i][0].header["fparad"])
-        datalist.append(imagelist[i][1].data[aycenlist[i]-aradlist[i]:aycenlist[i]+aradlist[i],axcenlist[i]-aradlist[i]:axcenlist[i]+aradlist[i]])
-        
-    #Adjust object and ghost coordinates because of the aperture shift
-    for i in range(len(fnlist)):
-        objxs[i] = np.array(objxs[i])-axcenlist[i]+aradlist[i]
-        objys[i] = np.array(objys[i])-aycenlist[i]+aradlist[i]
-        ghoxs[i] = np.array(ghoxs[i])-axcenlist[i]+aradlist[i]
-        ghoys[i] = np.array(ghoys[i])-aycenlist[i]+aradlist[i]
-        xcens[i] = xcens[i]-axcenlist[i]+aradlist[i]
-        ycens[i] = ycens[i]-aycenlist[i]+aradlist[i]
-            
+        objxs[i] = np.array(objxs[i])-axcens[i]+arads[i]
+        objys[i] = np.array(objys[i])-aycens[i]+arads[i]
+        ghoxs[i] = np.array(ghoxs[i])-axcens[i]+arads[i]
+        ghoys[i] = np.array(ghoys[i])-aycens[i]+arads[i]
+        xcens[i] = xcens[i]-axcens[i]+arads[i]
+        ycens[i] = ycens[i]-aycens[i]+arads[i]
+    
     #Interactive plotting routine thing
     i = 0
     while True:
-        plot = Verify_Center_Plot(fnlist[i],datalist[i],flagged[i],xcens[i],ycens[i],objxs[i],objys[i],ghoxs[i],ghoys[i])
+        plot = Verify_Center_Plot(fnlist[i],datas[i],
+                                  flagged[i],xcens[i],ycens[i],
+                                  objxs[i],objys[i],ghoxs[i],ghoys[i])
         if plot.key == "d": i+=1
         if plot.key == "a": i+=-1
         if plot.key == "w": flagged[i]=True
@@ -106,10 +97,9 @@ def verify_center(fnlist, objxs, objys, ghoxs, ghoys, xcens, ycens):
         if i == -1 or i == len(fnlist) or plot.key == "q": break
     
     #Close all images
-    for i in range(len(fnlist)):
-        imagelist[i].close()
-
-    #Restore old save key    
+    for image in images: image.close()
+    
+    #Restore old save key
     plt.rcParams["keymap.save"] = oldsavekey
     
     #If any images are flagged, return False
@@ -158,46 +148,58 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
     
     """
     
-    #Fit for the sky background level
-    skyavg, skysig = fit_sky_level(fnlist)
-    
     #Get image FWHMs
     fwhm = np.empty(len(fnlist))
-    firstimage = openfits(fnlist[0])
-    toggle = firstimage[0].header.get("fpfwhm")
-    axcen = firstimage[0].header.get("fpaxcen")
-    aycen = firstimage[0].header.get("fpaycen")
-    arad = firstimage[0].header.get("fparad")
+    firstimage = FPImage(fnlist[0])
+    toggle = firstimage.fwhm
+    axcen = firstimage.axcen
+    aycen = firstimage.aycen
+    arad = firstimage.arad
     firstimage.close()
     if axcen == None:
         print "Error! Images have not yet been aperture-masked! Do this first!"
         crash()
     if toggle == None:
-        print "Warning: FWHMs have not been measured! Assuming 5 pixel FWHM for all images."
-        for i in range(len(fnlist)): fwhm[i] = 5
+        print "Warning: FWHMs have not been measured!"
+        print "Assuming 5 pixel FWHM for all images."
+        fwhm = 5.*np.ones(len(fnlist))
     else:
         for i in range(len(fnlist)):
-            image = openfits(fnlist[i])
-            fwhm[i] = image[0].header["fpfwhm"]
+            image = FPImage(fnlist[i])
+            fwhm[i] = image.fwhm
             image.close()
-    
+            
+    #Get sky background levels
+    skyavg = np.empty(len(fnlist))
+    skysig = np.empty(len(fnlist))
+    for i in range(len(fnlist)):
+        image = FPImage(fnlist[i])
+        skyavg[i], skysig[i] = image.skybackground()
+        image.close()
+        
     #Identify the stars in each image
     xlists = []
     ylists = []
     maglists = []
+    print "Identifying stars and ghosts in each image..."
     for i in range(len(fnlist)):
         xlists.append([])
         ylists.append([])
         maglists.append([])
-        image = openfits(fnlist[i])
-        axcen = image[0].header["fpaxcen"]
-        aycen = image[0].header["fpaycen"]
-        arad = image[0].header["fparad"]
-        sources = daofind(image[1].data-skyavg[i],
+        image = FPImage(fnlist[i])
+        axcen = image.axcen
+        aycen = image.aycen
+        arad = image.arad
+        sources = daofind(image.inty-skyavg[i],
                           fwhm=fwhm[i],
                           threshold=thresh*skysig[i]).as_array()
         for j in range(len(sources)):
-            if np.logical_and((sources[j][1]-axcen)**2 + (sources[j][2]-aycen)**2 > 50**2,(sources[j][1]-axcen)**2 + (sources[j][2]-aycen)**2 < (0.95*arad)**2):
+            #Masks for center and edge of image
+            cenmask = ((sources[j][1]-axcen)**2 +
+                       (sources[j][2]-aycen)**2 > (0.05*arad)**2)
+            edgemask = ((sources[j][1]-axcen)**2 +
+                        (sources[j][2]-aycen)**2 < (0.95*arad)**2)
+            if np.logical_and(cenmask, edgemask):
                 xlists[i].append(sources[j][1])
                 ylists[i].append(sources[j][2])
                 maglists[i].append(sources[j][-1])
@@ -223,7 +225,8 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
         xcenarray, ycenarray = 0.5*xcenarray, 0.5*ycenarray
         #Cross check the various possible centers against each other
         for j in range(len(xcenarray)):
-            dist2array = (xcenarray-xcenarray[j])**2 + (ycenarray-ycenarray[j])**2
+            dist2array = ( (xcenarray-xcenarray[j])**2 +
+                           (ycenarray-ycenarray[j])**2 )
             sub1array[j] = np.sum(dist2array<tolerance**2)
         #Determine the locations of the "best" centers.
         bestcenloc = np.where(sub1array==max(sub1array))[0]
@@ -232,7 +235,8 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
         xcenarray = xcenarray[bestcenloc]
         ycenarray = ycenarray[bestcenloc]
         for j in range(len(bestcenloc)):
-            dist2array = (xcenarray-xcenarray[j])**2 + (ycenarray-ycenarray[j])**2
+            dist2array = ( (xcenarray-xcenarray[j])**2 +
+                           (ycenarray-ycenarray[j])**2 )
             sub1array[j] = np.sum(dist2array<tolerance**2)
         #Again, determine the locations of the "best" centers.
         bestcenloc = np.where(sub1array==max(sub1array))[0]
@@ -246,8 +250,8 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
     
     #Determine where in the arrays the best fitting centers are
     bestcenloc = np.where(goodcen==max(goodcen))[0]
-    bestxcen, bestycen = np.average(xcen[bestcenloc]), np.average(ycen[bestcenloc])
-    #bestxcen, bestycen = 791, 503
+    bestxcen = np.average(xcen[bestcenloc])
+    bestycen = np.average(ycen[bestcenloc])
     
     #Now we want to improve the center for each image using the best guesses
     xcenlist = np.zeros(len(fnlist))
@@ -266,10 +270,11 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
         ghoxs.append([])
         ghoys.append([])
         for j in range(len(xlists[i])):
-            dist2list = (xlists[i] - refxlist[j])**2 + (ylists[i] - refylist[j])**2
+            dist2list = ( (xlists[i] - refxlist[j])**2 + 
+                          (ylists[i] - refylist[j])**2 )
             matchlist = dist2list < tolerance**2
             if np.sum(matchlist) >= 1:
-                #We found a match! Now we need to know where the match(es) is(are)
+                #We found a match! Now we need to know where the match is
                 matchloc = np.where(matchlist==1)[0][0]
                 #Cool, now, is this thing brighter than the ghost?
                 if maglists[i][matchloc] < maglists[i][j]:
@@ -294,9 +299,9 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
     
     #Append the values to the image headers
     for i in range(len(fnlist)):
-        image = openfits(fnlist[i],mode="update")
-        image[0].header["fpxcen"] = xcenlist[i]
-        image[0].header["fpycen"] = ycenlist[i]
+        image = FPImage(fnlist[i],update=True)
+        image.xcen = xcenlist[i]
+        image.ycen = ycenlist[i]
         image.close()
         
     #Manually verify ghost centers
@@ -305,8 +310,11 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
         if "n" in yn or "N" in yn:
             break
         elif "y" in yn or "Y" in yn:
-            goodcenters = verify_center(fnlist,objxs,objys,ghoxs,ghoys,xcenlist,ycenlist)
-            if goodcenters: break
+            goodtog = verify_center(fnlist,
+                                    objxs,objys,
+                                    ghoxs,ghoys,
+                                    xcenlist,ycenlist)
+            if goodtog: break
             else:
                 print "Centers not approved!"
                 crash()

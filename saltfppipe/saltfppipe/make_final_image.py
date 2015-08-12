@@ -1,8 +1,7 @@
 import numpy as np
-from astropy.io.fits import open as openfits
 from astropy.io.fits import ImageHDU
 from sys import exit as crash
-from saltfppipe.fit_sky_level import fit_sky_level
+from saltfppipe.fp_image_class import FPImage
 
 def convolve_variance(vararray, badpixarray, kern):
     """Convolves a variance array by the kernel 'kern'.
@@ -39,8 +38,15 @@ def convolve_variance(vararray, badpixarray, kern):
     #Loop over the kernel
     for y in range(2*ksize+1):
         for x in range(2*ksize+1):
-            running_var_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]**2*vararray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
-            running_wgt_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]**2*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            ylim = ysize-2*ksize-1+y
+            xlim = xsize-2*ksize-1+x
+            running_var_sum[ksize:ysize-ksize-1,
+                            ksize:xsize-ksize-1] += ( kern[y,x]**2 * 
+                                                      vararray[y:ylim,x:xlim] * 
+                                                      mask[y:ylim,x:xlim] )
+            running_wgt_sum[ksize:ysize-ksize-1,
+                            ksize:xsize-ksize-1] += ( kern[y,x]**2 * 
+                                                      mask[y:ylim,x:xlim] )
     
     #Divide the running variance by the running weight sum to normalize by
     #how much of the kernel we ended up using
@@ -79,21 +85,30 @@ def convolve_wave(wavearray, intyarray, badpixarray, kern):
     ysize = wavearray.shape[0]
     
     #Empty wavelength and weight arrays to fill while convolving
-    running_wave_sum = np.zeros_like(wavearray)
+    running_wav_sum = np.zeros_like(wavearray)
     running_wgt_sum = np.zeros_like(wavearray)
     
     #Loop over the kernel
     for y in range(2*ksize+1):
         for x in range(2*ksize+1):
-            running_wave_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*wavearray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
-            running_wgt_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            ylim = ysize-2*ksize-1+y
+            xlim = xsize-2*ksize-1+x
+            running_wav_sum[ksize:ysize-ksize-1,
+                            ksize:xsize-ksize-1] += ( kern[y,x] * 
+                                                      intyarray[y:ylim,x:xlim] * 
+                                                      wavearray[y:ylim,x:xlim] * 
+                                                      mask[y:ylim,x:xlim] )
+            running_wgt_sum[ksize:ysize-ksize-1,
+                            ksize:xsize-ksize-1] += ( kern[y,x] * 
+                                                      intyarray[y:ylim,x:xlim] * 
+                                                      mask[y:ylim,x:xlim] )
     
     #Divide the running wavelength by the running weight sum to normalize by
     #how much of the kernel we ended up using
-    running_wave_sum[mask] = running_wave_sum[mask]/running_wgt_sum[mask]
-    running_wave_sum[np.logical_not(mask)]=wavearray[np.logical_not(mask)]
+    running_wav_sum[mask] = running_wav_sum[mask]/running_wgt_sum[mask]
+    running_wav_sum[np.logical_not(mask)]=wavearray[np.logical_not(mask)]
     
-    return running_wave_sum
+    return running_wav_sum
 
 def convolve_inty(intyarray, badpixarray, kern):
     """Convolves an intensity array by the kernel 'kern'. Ignores pixels with
@@ -124,21 +139,28 @@ def convolve_inty(intyarray, badpixarray, kern):
     ysize = intyarray.shape[0]
     
     #Empty intensity and count arrays to fill while convolving
-    running_inty_sum = np.zeros_like(intyarray)
-    running_kern_sum = np.zeros_like(intyarray)
+    running_int_sum = np.zeros_like(intyarray)
+    running_wgt_sum = np.zeros_like(intyarray)
     
     #Loop over the kernel
     for y in range(2*ksize+1):
         for x in range(2*ksize+1):
-            running_inty_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*intyarray[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
-            running_kern_sum[ksize:ysize-ksize-1,ksize:xsize-ksize-1] += kern[y,x]*mask[y:ysize-2*ksize-1+y,x:xsize-2*ksize-1+x]
+            ylim = ysize-2*ksize-1+y
+            xlim = xsize-2*ksize-1+x
+            running_int_sum[ksize:ysize-ksize-1,
+                            ksize:xsize-ksize-1] += ( kern[y,x] * 
+                                                      intyarray[y:ylim,x:xlim] * 
+                                                      mask[y:ylim,x:xlim] )
+            running_wgt_sum[ksize:ysize-ksize-1,
+                            ksize:xsize-ksize-1] += ( kern[y,x] *
+                                                      mask[y:ylim,x:xlim] )
     
     #Divide the running intensity by the running kernel sum to normalize by
     #how much of the kernel we ended up using
-    running_inty_sum[mask] = running_inty_sum[mask]/running_kern_sum[mask]
-    running_inty_sum[np.logical_not(mask)]=0
+    running_int_sum[mask] = running_int_sum[mask]/running_wgt_sum[mask]
+    running_int_sum[np.logical_not(mask)]=0
     
-    return running_inty_sum
+    return running_int_sum
 
 def make_final_image(input_image, output_image,
                      desired_fwhm, clobber=False):
@@ -169,67 +191,75 @@ def make_final_image(input_image, output_image,
     
     print "Making final data cube images for image "+input_image
     
-    #Measure the sky background level in the input image
-    skyavg, skysig = fit_sky_level([input_image])
+    #Open the image
+    image = FPImage(input_image)
     
-    #Open the input image and get various header keywords, crash if necessary
-    image = openfits(input_image)
-    intygrid = image[1].data
-    fwhm = image[0].header.get("fpfwhm")
-    wave0 = image[0].header.get("fpwave0")
-    calf = image[0].header.get("fpcalf")
-    xcen = image[0].header.get("fpxcen")
-    ycen = image[0].header.get("fpycen")
-    if fwhm == None: crash("Error! FWHM not measured for image "+input_image+".")
-    if wave0 == None or calf == None: crash("Error! Wavelength solution does "+
-                                            "not exist for image "+input_image+".")
-    if xcen == None or ycen == None: crash("Error! Center values not measured "+
-                                           "image "+input_image+".")
-    if fwhm>desired_fwhm: crash("Error! Desired FWHM too low for image "+
-                                input_image+".")
+    #Measure the sky background level in the input image
+    skyavg, skysig = image.skybackground()
+    
+    #Get various header keywords, crash if necessary
+    intygrid = image.inty
+    fwhm = image.fwhm
+    wave0 = image.wave0
+    calf = image.calf
+    xcen = image.xcen
+    ycen = image.ycen
+    if fwhm == None:
+        crash("Error! FWHM not measured for image "+input_image+".")
+    if wave0 == None or calf == None:
+        crash("Error! Wavelength solution does "+
+              "not exist for image "+input_image+".")
+    if xcen == None or ycen == None:
+        crash("Error! Center values not measured "+
+              "image "+input_image+".")
+    if fwhm>desired_fwhm:
+        crash("Error! Desired FWHM too low for image "+
+              input_image+".")
     
     #Calculate the necessary FWHM for convolution and make the gaussian kernel
     fwhm_conv = np.sqrt(desired_fwhm**2-fwhm**2)
-    sig = fwhm_conv/2.3548+0.0001
+    sig = fwhm_conv/2.3548+0.0001 #Magic number converts sigma to fwhm
     ksize = np.ceil(4*sig) #Generate the kernel to 4-sigma
-    kxgrid, kygrid = np.meshgrid(np.linspace(-ksize,ksize,2*ksize+1),np.linspace(-ksize,ksize,2*ksize+1))
-    kern = np.exp(-(kxgrid**2+kygrid**2)/(2*sig**2)) #Gaussian (unnormalized because sig can be 0)
+    kxgrid, kygrid = np.meshgrid(np.linspace(-ksize,ksize,2*ksize+1),
+                                 np.linspace(-ksize,ksize,2*ksize+1))
+    kern = np.exp(-(kxgrid**2+kygrid**2)/(2*sig**2)) #Gaussian kernel
     kern = kern/np.sum(kern) #Normalize the kernel
     
     #Convolve the variance array
-    vargrid = image[2].data
-    badpixgrid = image[3].data
+    vargrid = image.vari
+    badpixgrid = image.badp
+    
     #Add the sky background uncertainty to the uncertainty grid
-    vargrid = vargrid+skysig[0]**2
+    vargrid = vargrid+skysig**2
+    
     #Convolve the variances appropriately
     new_vargrid = convolve_variance(vargrid, badpixgrid, kern)
     
     #Create and convolve the wavelength array
-    xgrid, ygrid = np.meshgrid(np.arange(image[1].data.shape[1]),
-                               np.arange(image[1].data.shape[0]))
-    r2grid = (xgrid-xcen)**2 + (ygrid-ycen)**2
-    wavegrid = wave0 / np.sqrt(1+r2grid/calf**2)
+    rgrid = image.rarray(xcen, ycen)
+    wavegrid = wave0 / np.sqrt(1+rgrid**2/calf**2)
     new_wavegrid = convolve_wave(wavegrid, intygrid, badpixgrid, kern)
     
     #Convolve the intensity image
     new_intygrid = convolve_inty(intygrid, badpixgrid, kern)
     new_intygrid[new_intygrid==0] = intygrid[new_intygrid==0]
-    image[0].header["fpfwhm"] = desired_fwhm #Update header FWHM keyword
+    image.fwhm = desired_fwhm #Update header FWHM keyword
     
     #Subtract the sky background from the image
-    intygrid[intygrid!=0] -= skyavg[0]
+    intygrid[intygrid!=0] -= skyavg
     
     #Create a new fits extension for the wavelength array
-    waveheader = image[2].header.copy()
+    waveheader = image.openimage[2].header.copy()
     waveheader['EXTVER'] = 4
-    wavehdu = ImageHDU(data = new_wavegrid, header=waveheader, name = "WAVE")
-    image[1].header.set('WAVEEXT', 4, comment='Extension for Wavelength Frame')
-    image.append(wavehdu)
+    wavehdu = ImageHDU(data = new_wavegrid, header = waveheader, name = "WAVE")
+    image.openimage[1].header.set('WAVEEXT', 4,
+                                  comment='Extension for Wavelength Frame')
+    image.openimage.append(wavehdu)
     
     #Put all of the convolved images in the right extensions
-    image[1].data = new_intygrid
-    image[2].data = new_vargrid
-    image[4].data = new_wavegrid
+    image.inty = new_intygrid
+    image.vari = new_vargrid
+    image.wave = new_wavegrid
     
     #Write the output file
     image.writeto(output_image, clobber=clobber)

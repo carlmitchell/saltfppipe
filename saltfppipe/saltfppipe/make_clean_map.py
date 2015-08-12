@@ -15,7 +15,7 @@ def make_clean_map(cubedir, clobber=False):
     minvel = float(raw_input("Enter minimum velocity: "))
     maxvel = float(raw_input("Enter maximum velocity: "))
     mask = np.logical_and(snarray>sncut,np.logical_and(velimage[0].data>minvel, velimage[0].data<maxvel))
-    print np.sum(mask)+" pixels kept."
+    print repr(np.sum(mask))+" pixels kept."
     newvelarray = np.zeros_like(velimage[0].data)
     newvelarray[mask] = velimage[0].data[mask]
     writefits(join(cubedir,"cleanvelmap.fits"), newvelarray, clobber=clobber)

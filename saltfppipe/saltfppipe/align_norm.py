@@ -1,11 +1,11 @@
-from astropy.io.fits import open as openfits
+from astropy.io import fits
 import numpy as np
-from saltfppipe.fit_sky_level import fit_sky_level
 from sys import exit as crash
 from os import remove
 import matplotlib.pyplot as plt
 from photutils import daofind, CircularAperture, aperture_photometry
 from pyraf import iraf
+from saltfppipe.fp_image_class import FPImage
 
 class PlotFluxRatios:
     def __init__(self,goodfluxrats,fluxratavg,fluxratsig):
@@ -16,17 +16,30 @@ class PlotFluxRatios:
         #Create the plot
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
-        self.plot = ax1.scatter(np.arange(len(goodfluxrats[:,0])),goodfluxrats[:,0],color="blue",marker="o")
-        ax1.plot(np.arange(len(goodfluxrats[:,0])),goodfluxrats[:,0],color="blue")
+        #Scatter plot of first star's flux ratios, setting up the key event
+        self.plot = ax1.scatter(np.arange(len(goodfluxrats[:,0])),
+                                goodfluxrats[:,0],
+                                color="blue",marker="o")
+        #Line plot of the same to connect the points from above
+        ax1.plot(np.arange(len(goodfluxrats[:,0])),
+                 goodfluxrats[:,0],
+                 color="blue")
+        #Remaining stars' scatter+line plots
         for i in range(1,goodfluxrats.shape[1]):
-            ax1.plot(np.arange(len(goodfluxrats[:,i])),goodfluxrats[:,i],color="blue",marker="o",linestyle="-")
-        ax1.errorbar(np.arange(len(fluxratavg)), fluxratavg, fluxratsig, color="red", marker="s",linestyle="--")
+            ax1.plot(np.arange(len(goodfluxrats[:,i])),
+                     goodfluxrats[:,i],
+                     color="blue",marker="o",linestyle="-")
+        #Average of all of the plots with errorbars
+        ax1.errorbar(np.arange(len(fluxratavg)),
+                     fluxratavg, fluxratsig,
+                     color="red", marker="s",linestyle="--")
         plt.title("Press 'd' on a point to delete an obviously bad star from the fit.\n"+
                   "Press 'r' to restore all previously deleted stars.\n"+
                   "Press 'a' to accept the fit.")
         plt.xlabel("Image Number")
         plt.ylabel("Normalization Value")
-        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
+        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",
+                                                       self.keypress)
         plt.tight_layout()
         plt.show()
         
@@ -38,7 +51,7 @@ class PlotFluxRatios:
             plt.close()
         return
     
-def calc_norm(counts,dcounts):
+def calc_norm(counts, dcounts):
     """Calculates the normalization values each image must be divided by
     in order to normalize them all to each other, as well as the uncertainty
     in these values.
@@ -78,7 +91,7 @@ def calc_norm(counts,dcounts):
     
     return countavg, countsig
     
-def align_norm(fnlist,tolerance=3,thresh=3.5):
+def align_norm(fnlist, tolerance=3, thresh=3.5):
     """Aligns a set of images to each other, as well as normalizing the images
     to the same average brightness.
     
@@ -112,44 +125,56 @@ def align_norm(fnlist,tolerance=3,thresh=3.5):
     
     """
     
-    #Fit for the sky background level
-    skyavg, skysig = fit_sky_level(fnlist)
-    
     #Get image FWHMs
     fwhm = np.empty(len(fnlist))
-    firstimage = openfits(fnlist[0])
-    toggle = firstimage[0].header.get("fpfwhm")
-    axcen = firstimage[0].header.get("fpaxcen")
-    aycen = firstimage[0].header.get("fpaycen")
-    arad = firstimage[0].header.get("fparad")
+    firstimage = FPImage(fnlist[0])
+    toggle = firstimage.fwhm
+    axcen = firstimage.axcen
+    aycen = firstimage.aycen
+    arad = firstimage.arad
     firstimage.close()
     if axcen == None:
         print "Error! Images have not yet been aperture-masked! Do this first!"
         crash()
     if toggle == None:
-        print "Warning: FWHMs have not been measured! Assuming 5 pixel FWHM for all images."
+        print "Warning! FWHMs have not been measured!"
+        print "Assuming 5 pixel FWHM for all images."
         for i in range(len(fnlist)): fwhm[i] = 5
     else:
         for i in range(len(fnlist)):
-            image = openfits(fnlist[i])
-            fwhm[i] = image[0].header["fpfwhm"]
+            image = FPImage(fnlist[i])
+            fwhm[i] = image.fwhm
             image.close()
     
+    #Get sky background levels
+    skyavg = np.empty(len(fnlist))
+    skysig = np.empty(len(fnlist))
+    for i in range(len(fnlist)):
+        image = FPImage(fnlist[i])
+        skyavg[i], skysig[i] = image.skybackground()
+        image.close()
+        
     #Identify the stars in each image
     xlists = []
     ylists = []
+    print "Identifying stars in each image..."
     for i in range(len(fnlist)):
         xlists.append([])
         ylists.append([])
-        image = openfits(fnlist[i])
-        axcen = image[0].header["fpaxcen"]
-        aycen = image[0].header["fpaycen"]
-        arad = image[0].header["fparad"]
-        sources = daofind(image[1].data-skyavg[i],
+        image = FPImage(fnlist[i])
+        axcen = image.axcen
+        aycen = image.aycen
+        arad = image.arad
+        sources = daofind(image.inty-skyavg[i],
                           fwhm=fwhm[i],
                           threshold=thresh*skysig[i]).as_array()
         for j in range(len(sources)):
-            if np.logical_and((sources[j][1]-axcen)**2 + (sources[j][2]-aycen)**2 > 50**2,(sources[j][1]-axcen)**2 + (sources[j][2]-aycen)**2 < (0.95*arad)**2):
+            #If the source is not near the center or edge
+            centermask = ((sources[j][1]-axcen)**2 + 
+                          (sources[j][2]-aycen)**2 > (0.05*arad)**2)
+            edgemask = ((sources[j][1]-axcen)**2 + 
+                        (sources[j][2]-aycen)**2 < (0.95*arad)**2)
+            if np.logical_and(centermask,edgemask):
                 xlists[i].append(sources[j][1])
                 ylists[i].append(sources[j][2])
         image.close()
@@ -163,7 +188,8 @@ def align_norm(fnlist,tolerance=3,thresh=3.5):
         accept = True
         for j in range(1,len(fnlist)):
             #For each other image
-            dist2 = (np.array(xlists[j])-xlists[0][i])**2 + (np.array(ylists[j])-ylists[0][i])**2
+            dist2 = ((np.array(xlists[j])-xlists[0][i])**2 + 
+                     (np.array(ylists[j])-ylists[0][i])**2)
             if (min(dist2) > tolerance**2):
                 accept = False
                 break
@@ -179,19 +205,21 @@ def align_norm(fnlist,tolerance=3,thresh=3.5):
         #For every object found in the first image
         for j in range(len(fnlist)):
             #Find that object in every image
-            dist2 = (np.array(xlists[j])-xcoo[i])**2 + (np.array(ylists[j])-ycoo[i])**2
+            dist2 = ((np.array(xlists[j])-xcoo[i])**2 +
+                     (np.array(ylists[j])-ycoo[i])**2)
             index = np.argmin(dist2)
             x[j,i] = xlists[j][index]
             y[j,i] = ylists[j][index]
 
     #Do aperture photometry on the matched objects
+    print "Performing photometry on matched stars..."
     counts = np.zeros_like(x)
     dcounts = np.zeros_like(x)
     for i in range(len(fnlist)):
-        image = openfits(fnlist[i])
+        image = FPImage(fnlist[i])
         apertures = CircularAperture((x[i],y[i]), r=2*fwhm[i])
-        phot_table = aperture_photometry(image[1].data-skyavg[i],
-                                         apertures,error=np.sqrt(image[2].data))
+        phot_table = aperture_photometry(image.inty-skyavg[i],
+                                         apertures,error=np.sqrt(image.vari))
         counts[i] = phot_table["aperture_sum"]
         dcounts[i] = phot_table["aperture_sum_err"]
         image.close()
@@ -202,11 +230,12 @@ def align_norm(fnlist,tolerance=3,thresh=3.5):
     #Normalize the images and adjust the variance plane
     for i in range(len(fnlist)):
         print "Normalizing image "+fnlist[i]
-        image = openfits(fnlist[i],mode="update")
-        image[1].data /= norm[i]
-        image[2].data = image[2].data/norm[i]**2 + image[1].data**2*dnorm[i]**2/norm[i]**2
+        image = FPImage(fnlist[i],update=True)
+        image.inty /= norm[i]
+        image.vari = (image.vari/norm[i]**2 + 
+                      image.inty**2*dnorm[i]**2/norm[i]**2)
         image.close()
-        
+    
     #Calculate the shifts
     for i in range(x.shape[1]):
         x[:,i] = -(x[:,i] - x[0,i])
@@ -317,24 +346,25 @@ def align_norm(fnlist,tolerance=3,thresh=3.5):
                      nyblock=512,
                      verbose="no")
         #Open the image in question
-        image = openfits(fnlist[i],mode="update")
+        image = FPImage(fnlist[i],update=True)
         #Update the data arrays with the appropriate shifted frames
-        temp = openfits("temp1.fits")
-        image[1].data = temp[0].data
+        temp = fits.open("temp1.fits")
+        image.inty = temp[0].data
         temp.close()
-        temp = openfits("temp2.fits")
-        image[2].data = temp[0].data
+        temp = fits.open("temp2.fits")
+        image.vari = temp[0].data
         temp.close()
-        temp = openfits("temp3.fits")
-        image[3].data = temp[0].data
-        image[3].data[image[3].data>0]=1 #Bad pixel adjustment
+        temp = fits.open("temp3.fits")
+        image.badp = temp[0].data
+        #And pixel with partially bad pixel data in it should be bad
+        image.badp[image.badp>0]=1
         temp.close()
         #Update the image headers
-        image[0].header["fpphot"]="True"
-        image[0].header["fpxcen"]+=xshifts[i]
-        image[0].header["fpycen"]+=yshifts[i]
-        image[0].header["fpaxcen"]+=xshifts[i]
-        image[0].header["fpaycen"]+=yshifts[i]
+        image.phottog="True"
+        image.xcen+=xshifts[i]
+        image.ycen+=yshifts[i]
+        image.axcen+=xshifts[i]
+        image.aycen+=yshifts[i]
         #Close the image and delete temp files
         image.close()
         remove("temp1.fits")

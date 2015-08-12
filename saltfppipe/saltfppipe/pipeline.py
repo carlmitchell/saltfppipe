@@ -10,7 +10,6 @@ from saltfppipe.aperture_mask import aperture_mask
 from saltfppipe.combine_flat import combine_flat
 from saltfppipe.flatten import flatten
 from saltfppipe.find_ghost_centers import find_ghost_centers
-#from lacosmicx import lacosmicx
 from saltfppipe.deghost import deghost
 from saltfppipe.align_norm import align_norm
 from saltfppipe.fit_wave_soln import fit_wave_soln
@@ -24,6 +23,7 @@ from pyraf import iraf
 from zsalt.imred import imred
 from saltfppipe.make_clean_map import make_clean_map
 from saltfppipe.mask_regions import mask_regions
+from saltfppipe.fp_image_class import FPImage
 
 class Verify_Images_Plot:
     def __init__(self,data,obj_type,flagged,num,total):
@@ -41,7 +41,8 @@ class Verify_Images_Plot:
                   "Object = "+obj_type+", Flagged = "+str(flagged)+"\n"+
                   "Use 'a'/'d' Keys to Navigate \n"+
                   "'w' and 's' Keys to Flag Bad Images/Headers")
-        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
+        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",
+                                                       self.keypress)
         plt.tight_layout()
         plt.show()
         
@@ -67,7 +68,8 @@ class Review_Images_Plot:
                   "Press 'h' to correct header if object type wrong.\n"+
                   "Press 'd' to delete this image.\n"+
                   "Press 'a' to approve this image.")
-        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
+        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",
+                                                       self.keypress)
         plt.tight_layout()
         plt.show()
         
@@ -85,7 +87,10 @@ class Click_Near_Aperture_Plot:
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
         #Plot the image
-        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",vmin=np.percentile(data,1),vmax=np.percentile(data,99),origin="lower",interpolation="nearest")
+        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",
+                               vmin=np.percentile(data,1),
+                               vmax=np.percentile(data,99),
+                               origin="lower",interpolation="nearest")
         #Plot the points on the boundary
         ax1.scatter(xs,ys,color="red")
         #Plot the best fitting circle center
@@ -97,10 +102,11 @@ class Click_Near_Aperture_Plot:
         #Fix the extent of the plot
         plt.xlim(0,data.shape[1])
         plt.ylim(0,data.shape[0])
-        
-        plt.title("Left click to zoom in on a point near the aperture boundary.\n"+
-                  "Right click to quit.")
-        self.cid = self.plot.figure.canvas.mpl_connect("button_press_event",self.click)
+        title=("Left click to zoom in on a point near the aperture bound.\n"+
+               "Right click to quit.")
+        plt.title(title)
+        self.cid = self.plot.figure.canvas.mpl_connect("button_press_event",
+                                                       self.click)
         plt.tight_layout()
         plt.show()
     
@@ -124,11 +130,15 @@ class Zoom_Aperture_Plot:
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
         #Plot the image
-        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",vmin=np.percentile(data,1),vmax=np.percentile(data,99),origin="lower",interpolation="nearest")
+        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",
+                               vmin=np.percentile(data,1),
+                               vmax=np.percentile(data,99),
+                               origin="lower",interpolation="nearest")
         plt.title("Left click to mark a boundary location.\n"+
                   "Right click to go back.")
         plt.tight_layout()
-        self.cid = self.plot.figure.canvas.mpl_connect("button_press_event",self.click)
+        self.cid = self.plot.figure.canvas.mpl_connect("button_press_event",
+                                                       self.click)
         plt.show()
     
     def click(self,event):
@@ -152,7 +162,10 @@ class Mark_Stars_Plot:
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
         #Plot the image
-        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",vmin=np.percentile(data,1),vmax=np.percentile(data,99),origin="lower",interpolation="nearest")
+        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",
+                               vmin=np.percentile(data,1),
+                               vmax=np.percentile(data,99),
+                               origin="lower",interpolation="nearest")
         #Plot the previously marked stars
         ax1.scatter(xs,ys,color="red")
         #Fix the extent of the plot
@@ -162,7 +175,8 @@ class Mark_Stars_Plot:
         plt.title("Press Z to zoom in on a region.\n"+
                   "Press D to delete a marked star.\n"+
                   "Press Q to quit.")
-        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
+        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",
+                                                       self.keypress)
         plt.tight_layout()
         plt.show()
     
@@ -171,7 +185,13 @@ class Mark_Stars_Plot:
         if self.key == "q":
             plt.close()
             return
-        if self.key in ["d","z"] and event.inaxes == self.plot.axes and event.xdata>24 and event.xdata<self.extent[1]-25 and event.ydata>24 and event.ydata<self.extent[0]-25:
+        goodclick = (self.key in ["d","z"] and 
+                     event.inaxes == self.plot.axes and 
+                     event.xdata>24 and 
+                     event.xdata<self.extent[1]-25 and 
+                     event.ydata>24 and 
+                     event.ydata<self.extent[0]-25)
+        if goodclick:
             self.xcoo = event.xdata
             self.ycoo = event.ydata
             plt.close()
@@ -186,13 +206,17 @@ class Zoom_Mark_Stars_Plot:
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
         #Plot the image
-        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",vmin=np.percentile(data,1),vmax=np.percentile(data,99),origin="lower",interpolation="nearest")
+        self.plot = ax1.imshow(data,cmap="Greys",aspect="equal",
+                               vmin=np.percentile(data,1),
+                               vmax=np.percentile(data,99),
+                               origin="lower",interpolation="nearest")
         #Fix the extent of the plot
         plt.xlim(0,data.shape[1])
         plt.ylim(0,data.shape[0])
         plt.title("Press Z to zoom back out.\n"+
                   "Press W to mark a star.")
-        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",self.keypress)
+        self.cid = self.plot.figure.canvas.mpl_connect("key_press_event",
+                                                       self.keypress)
         plt.show()
     
     def keypress(self,event):
@@ -213,18 +237,22 @@ class FWHMs_Plot:
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
         #Plot the fwhm data
-        self.plot = ax1.scatter(np.arange(len(fwhms)),fwhms,color="blue",label="New FWHM")
+        self.plot = ax1.scatter(np.arange(len(fwhms)),fwhms,
+                                color="blue",label="New FWHM")
         if not (oldfwhms is None) and not (oldfwhmserr is None):
-            ax1.errorbar(np.arange(len(fwhms)),oldfwhms,yerr=oldfwhmserr,color="red",label="Previous FWHMs",fmt="o")
+            ax1.errorbar(np.arange(len(fwhms)),oldfwhms,yerr=oldfwhmserr,
+                         color="red",label="Previous FWHMs",fmt="o")
         if not (oldfwhms is None) and oldfwhmserr is None:
-            ax1.scatter(np.arange(len(fwhms)),oldfwhms,color="red",label="Previous FWHM")
+            ax1.scatter(np.arange(len(fwhms)),oldfwhms,
+                        color="red",label="Previous FWHM")
         plt.title("Left click to accept new star's measurements\n"+
                   "Right click to reject it.")
         plt.legend(loc="best")
         plt.xlim(-1,len(fwhms)+1)
         plt.xlabel("Image number in track")
         plt.ylabel("FWHM [pix]")
-        self.cid = self.plot.figure.canvas.mpl_connect("button_press_event",self.click)
+        self.cid = self.plot.figure.canvas.mpl_connect("button_press_event",
+                                                       self.click)
         plt.show()
     
     def click(self,event):
@@ -247,7 +275,8 @@ def create_directory(name):
     """
     if isdir(name):
         while True:
-            yn = raw_input("Directory '"+name+"' already exists. Overwrite it? (y/n) ")
+            yn = raw_input("Directory '"+name+"' already exists. "+
+                           "Overwrite it? (y/n) ")
             if "n" in yn or "N" in yn:
                 return False
             if "y" in yn or "Y" in yn:
@@ -282,13 +311,13 @@ def verify_images(fnlist):
     #Interactively look at the images
     current_num = 0
     while True:
-        image = openfits(fnlist[current_num],mode="update")
-        image[0].header["fpverify"]="True"
-        verify = Verify_Images_Plot(image[1].data,
-                             image[0].header["OBJECT"],
-                             flagged[current_num],
-                             current_num+1,
-                             num_images)
+        image = FPImage(fnlist[current_num],update=True)
+        image.header["fpverify"]="True"
+        verify = Verify_Images_Plot(image.inty,
+                                    image.object,
+                                    flagged[current_num],
+                                    current_num+1,
+                                    num_images)
         image.close()
         if verify.key == "a": current_num = current_num-1
         if verify.key == "d": current_num = current_num+1
@@ -312,29 +341,33 @@ def verify_images(fnlist):
                     break
                 elif "y" in yn or "Y" in yn:
                     break
-        if current_num == -1 or current_num == num_images or verify.key == "q": break
+        if current_num == -1 or current_num == num_images or verify.key == "q":
+            break
     
     #Review flagged images
     print "Reviewing "+str(np.sum(flagged))+" flagged images..."
     newfnlist = []
     for i in range(len(fnlist)):
         if flagged[i]:
-            image = openfits(fnlist[i],mode="update")
-            review = Review_Images_Plot(image[1].data,image[0].header["OBJECT"],fnlist[i])
+            image = FPImage(fnlist[i],update=True)
+            review = Review_Images_Plot(image.inty,image.object,fnlist[i])
             if review.key == "h":
                 #Correct header
                 while True:
-                    newhead = raw_input("New object type for header (ARC, FLAT, etc.): ")
-                    yn = raw_input("New object header: '"+newhead+"'. Is this okay? (y/n) ")
+                    prompt = "New object type for header (ARC, FLAT, etc.): "
+                    newhead = raw_input(prompt)
+                    prompt = ( "New object header: '"
+                               +newhead+"'. Is this okay? (y/n) " )
+                    yn = raw_input(prompt)
                     if ("y" in yn or "Y" in yn) and not ("n" in yn or "N" in yn):
-                        image[0].header["OBJECT"] = newhead
+                        image.object = newhead
                         break
                 newfnlist.append(fnlist[i])
             if review.key == "a":
                 newfnlist.append(fnlist[i])
             if review.key == "d":
                 print fnlist[i]+" removed from file list."
-                image[0].header["FPGOOD"] = "False"
+                image.goodtog = "False"
             image.close()
         else: newfnlist.append(fnlist[i])
     
@@ -350,11 +383,11 @@ def separate_lists(fnlist):
     fnlist -> A list containing strings, each the location of a fits image
     
     Outputs:
-    flatlist -> List of flatfield images
+    flatlist -> List of paths to flatfield images
     list_of_objects -> List of distinct objects
-    objectlists -> List of lists, each one all of the files for a particular object
+    objectlists -> List of lists, each one all of the files for an object
     list_of_filters -> List of distinct filters
-    filterlists -> List of lists, each one all the files for a given filter
+    filterlists -> List of lists, each one all the files for a filter
     
     """
     
@@ -363,21 +396,21 @@ def separate_lists(fnlist):
     list_of_filters = []
     flatlist = []
     for i in range(len(fnlist)):
-        image = openfits(fnlist[i])
-        #Break if image was previously flagged as bad
-        fpgood = image[0].header.get("FPGOOD")
-        if not (fpgood is None):
-            if "False" in fpgood:
-                continue
-        #Case for flats
-        if image[0].header["OBJECT"]=="FLAT": flatlist.append(fnlist[i])
-        #Case for ARCs
-        elif image[0].header["OBJECT"]=="ARC":
-            if not (image[0].header["FILTER"] in list_of_filters): list_of_filters.append(image[0].header["FILTER"])
-        #Case for Objects
-        else:
-            if not (image[0].header["FILTER"] in list_of_filters): list_of_filters.append(image[0].header["FILTER"])
-            if not (image[0].header["OBJECT"] in list_of_objects): list_of_objects.append(image[0].header["OBJECT"])
+        image = FPImage(fnlist[i])
+        #Skip the rest if image was previously flagged as bad
+        if image.goodtog is None:
+            #Case for flats
+            if image.object=="FLAT": flatlist.append(fnlist[i])
+            #Case for ARCs
+            elif image.object=="ARC":
+                if not (image.filter in list_of_filters):
+                    list_of_filters.append(image.filter)
+            #Case for Objects
+            else:
+                if not (image.filter in list_of_filters):
+                    list_of_filters.append(image.filter)
+                if not (image.object in list_of_objects):
+                    list_of_objects.append(image.object)
         image.close()
     list_of_filters = np.array(list_of_filters)
     list_of_objects = np.array(list_of_objects)
@@ -388,16 +421,17 @@ def separate_lists(fnlist):
     for i in range(len(list_of_objects)): objectlists.append([])
     for i in range(len(list_of_filters)): filterlists.append([])
     for i in range(len(fnlist)):
-        image = openfits(fnlist[i])
-        #Break if image was previously flagged as bad
-        fpgood = image[0].header.get("FPGOOD")
-        if not (fpgood is None):
-            if "False" in fpgood:
-                continue
-        if image[0].header["OBJECT"]!="FLAT":
-            if image[0].header["OBJECT"]!="ARC": objectlists[np.where(image[0].header["OBJECT"]==list_of_objects)[0][0]].append(fnlist[i])
-            filterlists[np.where(image[0].header["FILTER"]==list_of_filters)[0][0]].append(fnlist[i])
+        image = FPImage(fnlist[i])
+        #Skip the rest if image was previously flagged as bad
+        if image.goodtog is None:
+            if image.object != "FLAT":
+                if image.object != "ARC":
+                    object_index = np.where(image.object==list_of_objects)[0][0]
+                    objectlists[object_index].append(fnlist[i])
+                filter_index = np.where(image.filter==list_of_filters)[0][0]
+                filterlists[filter_index].append(fnlist[i])
         image.close()
+        
     return flatlist, list_of_objects, objectlists, list_of_filters, filterlists
     
 def get_aperture(path):
@@ -416,45 +450,36 @@ def get_aperture(path):
     
     """
 
-    image = openfits(path)
+    image = FPImage(path)
     xs, ys = [], []
-    axcen, aycen, arad = image[1].data.shape[1]/2, image[1].data.shape[0]/2, 0
-    apguess = np.array([image[1].data.shape[1]/2,image[1].data.shape[0]/2,min(image[1].data.shape[0],image[1].data.shape[1])/2],dtype='float64')
+    axcen, aycen, arad = image.xsize/2, image.ysize/2, 0
+    apguess = np.array([image.xsize/2,
+                        image.ysize/2,
+                        min(image.xsize,image.ysize)/2],dtype='float64')
     while True:
-        click = Click_Near_Aperture_Plot(image[1].data,xs,ys,axcen,aycen,arad)
-        if not (click.xcoo is None) and click.xcoo>26 and click.ycoo>26 and click.xcoo<image[1].data.shape[1]-26 and click.ycoo<image[1].data.shape[0]-26:
-            newclick = Zoom_Aperture_Plot(image[1].data[click.ycoo-25:click.ycoo+25,click.xcoo-25:click.xcoo+25])
+        click = Click_Near_Aperture_Plot(image.inty,xs,ys,axcen,aycen,arad)
+        if (not (click.xcoo is None) and
+        click.xcoo>26 and click.ycoo>26 and
+        click.xcoo<image.xsize-26 and
+        click.ycoo<image.ysize-26):
+            #If the click was in a not-stupid place
+            zoomdata = image.inty[click.ycoo-25:click.ycoo+25,
+                                  click.xcoo-25:click.xcoo+25]
+            newclick = Zoom_Aperture_Plot(zoomdata)
             if not (newclick.xcoo is None):
                 xs.append(newclick.xcoo+click.xcoo-25)
                 ys.append(newclick.ycoo+click.ycoo-25)
                 if len(xs)>2:
-                    apparams = minimize(lambda x: np.sum(((np.array(xs)-x[0])**2+(np.array(ys)-x[1])**2-x[2]**2)**2), apguess).x
+                    #Fit a circle to the points
+                    apparams = minimize(lambda x: np.sum(((np.array(xs)-x[0])**2+
+                                                          (np.array(ys)-x[1])**2-
+                                                          x[2]**2)**2), apguess).x
                     axcen, aycen, arad = apparams[0], apparams[1], apparams[2]
         elif len(xs)>2 and click.xcoo is None: break
     
     image.close()
     
     return axcen, aycen, arad
-    
-# def cosmic_ray_remove(fnlist):
-#     """Runs the LACosmicx routine on a series of images in order to correct
-#     cosmic rays. Creates the header keyword 'fpcosmic' and sets its value to
-#     'True'
-#     
-#     Inputs:
-#     fnlist -> A list containing the paths to fits images.
-#     
-#     """
-#     
-#     for i in range(len(fnlist)):
-#         print "Cosmic-ray correcting image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
-#         image = openfits(fnlist[i],mode="update")
-#         image[0].header["fpcosmic"] = "True"
-#         _mask, image[0].data = lacosmicx(image[0].data,verbose=False,cleantype='idw')
-#         image[0].data[np.isnan(image[0].data)]=0
-#         image.close()
-#     
-#     return
     
 def measure_fwhm(fnlist):
     """Gets the coordinates for a handful of stars from the user interactively,
@@ -474,12 +499,12 @@ def measure_fwhm(fnlist):
     #Open the images
     imagelist = []
     for i in range(len(fnlist)):
-        imagelist.append(openfits(fnlist[i],mode="update"))
+        imagelist.append(FPImage(fnlist[i],update=True))
     
-    xcen = imagelist[0][0].header["fpaxcen"]
-    ycen = imagelist[0][0].header["fpaycen"]
-    arad = imagelist[0][0].header["fparad"]
-    data = imagelist[0][1].data[ycen-arad:ycen+arad,xcen-arad:xcen+arad]
+    xcen = imagelist[0].axcen
+    ycen = imagelist[0].aycen
+    arad = imagelist[0].arad
+    data = imagelist[0].inty[ycen-arad:ycen+arad,xcen-arad:xcen+arad]
     xgrid, ygrid = np.meshgrid( np.arange(50), np.arange(50) )
     starx, stary, starfwhm = [], [], []
     while True:
@@ -487,18 +512,25 @@ def measure_fwhm(fnlist):
         if plot.key == "q" and len(starx) != 0: break
         elif not (plot.xcoo is None) and plot.key == "d" and len(starx) != 0:
             #Find the star nearest to the coordinates
-            distarray = (np.array(starx)-plot.xcoo)**2+(np.array(stary)-plot.ycoo)**2
+            distarray = ((np.array(starx)-plot.xcoo)**2+
+                         (np.array(stary)-plot.ycoo)**2)
             index = np.where(distarray == np.min(distarray))[0][0]
             starx.pop(index)
             stary.pop(index)
             starfwhm.pop(index)
         elif not (plot.xcoo is None) and plot.key == "z":
-            zoom = Zoom_Mark_Stars_Plot(data[plot.ycoo-25:plot.ycoo+25,plot.xcoo-25:plot.xcoo+25])
+            zoom = Zoom_Mark_Stars_Plot(data[plot.ycoo-25:plot.ycoo+25,
+                                             plot.xcoo-25:plot.xcoo+25])
             if not (zoom.xcoo is None):
                 #Measure the FWHM of that star in every image
                 fwhms = np.zeros(len(fnlist))
+                ylowlim = plot.ycoo+zoom.ycoo+ycen-arad-50
+                yuplim  = plot.ycoo+zoom.ycoo+ycen-arad
+                xlowlim = plot.xcoo+zoom.xcoo+xcen-arad-50
+                xuplim =  plot.xcoo+zoom.xcoo+xcen-arad
                 for i in range(len(fnlist)):
-                    zoomdata = imagelist[i][1].data[plot.ycoo+zoom.ycoo+ycen-arad-50:plot.ycoo+zoom.ycoo+ycen-arad,plot.xcoo+zoom.xcoo+xcen-arad-50:plot.xcoo+zoom.xcoo+xcen-arad]
+                    zoomdata = imagelist[i].inty[ylowlim:yuplim,
+                                                 xlowlim:xuplim]
                     xpeak = xgrid[zoomdata==np.max(zoomdata)][0]
                     ypeak = ygrid[zoomdata==np.max(zoomdata)][0]
                     xdata = zoomdata[ypeak,:]
@@ -520,7 +552,7 @@ def measure_fwhm(fnlist):
                     oldfwhmserr = None
                 fwhmsplot = FWHMs_Plot(fwhms,oldfwhms,oldfwhmserr)
                 if not(fwhmsplot.button is None):
-                    #If it's okay, append the coordinates and FWHMs to the lists
+                    #If it's okay, append the coords and FWHMs to the lists
                     starx.append(zoom.xcoo+plot.xcoo-25)
                     stary.append(zoom.ycoo+plot.ycoo-25)
                     starfwhm.append(fwhms)
@@ -528,7 +560,7 @@ def measure_fwhm(fnlist):
     #Append the measured FWHMs to the image headers
     imagefwhm = np.median(np.array(starfwhm), axis=0)
     for i in range(len(fnlist)):
-        imagelist[i][0].header["fpfwhm"] = imagefwhm[i]
+        imagelist[i].fwhm = imagefwhm[i]
     
     #Close the images
     for i in range(len(fnlist)):
@@ -548,8 +580,8 @@ def make_median(fnlist,outfile):
     imagelist = []
     datalist = []
     for i in range(len(fnlist)):
-        imagelist.append(openfits(fnlist[i]))
-        datalist.append(imagelist[i][1].data)
+        imagelist.append(FPImage(fnlist[i]))
+        datalist.append(imagelist[i].inty)
     datalist = np.array(datalist)
     
     meddata = np.median(datalist,axis=0)
@@ -581,7 +613,8 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     #Create product directory
     if isdir("product"):
         while True:
-            yn = raw_input("Product directory already exists. Recreate it? (y/n) ")
+            yn = raw_input("Product directory already exists. "+
+                           "Recreate it? (y/n) ")
             if "n" in yn or "N" in yn: break
             elif "y" in yn or "Y" in yn:
                 rmtree("product")
@@ -594,8 +627,14 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         #Run the first two steps of imred on the first image
         iraf.pysalt(_doprint=0)
         iraf.saltred(_doprint=0)
-        iraf.saltprepare(fnlist[0], "temp.fits", "", createvar=False, badpixelimage="", clobber=True, logfile="temp.log", verbose=True)
-        iraf.saltbias("temp.fits", "temp.fits", "", subover=True, trim=True, subbias=False, masterbias="", median=False, function="polynomial", order=5,rej_lo=3.0,rej_hi=5.0, niter=10, plotover=False, turbo=False, clobber=True, logfile="temp.log", verbose=True)
+        iraf.saltprepare(fnlist[0], "temp.fits", "", createvar=False, 
+                         badpixelimage="", clobber=True, logfile="temp.log",
+                         verbose=True)
+        iraf.saltbias("temp.fits", "temp.fits", "", 
+                      subover=True, trim=True, subbias=False, masterbias="", 
+                      median=False, function="polynomial", order=5,rej_lo=3.0,
+                      rej_hi=5.0, niter=10, plotover=False, turbo=False, 
+                      clobber=True, logfile="temp.log", verbose=True)
         #Create the bad pixel mask
         image = openfits("temp.fits")
         for i in range(1,len(image)):
@@ -620,31 +659,17 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     fnlist = sorted(listdir("product"))
     for i in range(len(fnlist)): fnlist[i] = join("product",fnlist[i])
     
-    #No longer dealing with single-extension fits files
-#     #Convert the images to single-extension fits files
-#     # This creates a new directory from scratch in order to preserve the
-#     # original raw directory.
-#     print "Converting images to single extension fits images..."
-#     productlist = []
-#     singextlist = []
-#     for i in range(len(fnlist)):
-#         if splitext(fnlist[i])[1] == ".fits":
-#             productlist.append(join(rawdir,fnlist[i]))
-#             singextlist.append(join("singext","s"+fnlist[i]))
-#     toggle = create_directory("singext")
-#     if toggle:
-#         make_single_extension(productlist,singextlist)
-#     else: print "Skipping creation of single-extension fits images."
-    
-    #Manual verification of fits images and headers 
-    firstimage = openfits(fnlist[0])
-    verify = firstimage[0].header.get("fpverify")
+    #Manual verification of fits images and headers
+    firstimage = FPImage(fnlist[0])
+    verify = firstimage.verifytog
     firstimage.close()
     if verify is None:
         while True:
-            yn = raw_input("Manually verify image contents? (Recommended) (y/n) ")
+            prompt = "Manually verify image contents? (Recommended) (y/n) "
+            yn = raw_input(prompt)
             if "n" in yn or "N" in yn:
-                print "Skipping manual verification of image contents (Not recommended)"
+                print ("Skipping manual verification of image contents "+
+                       "(Not recommended)")
                 break
             if "y" in yn or "Y" in yn:
                 fnlist = verify_images(fnlist)
@@ -654,8 +679,8 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     flatlist, list_of_objs, objlists, list_of_filts, filtlists = separate_lists(fnlist)
 
     #Masking of pixels outside the aperture
-    firstimage = openfits(objlists[0][0])
-    axcen = firstimage[0].header.get("fpaxcen")
+    firstimage = FPImage(objlists[0][0])
+    axcen = firstimage.axcen
     firstimage.close()
     if axcen is None:
         print "Masking pixels outside the RSS aperture..."
@@ -663,51 +688,27 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         aperture_mask(fnlist,axcen,aycen,arad)
     else: print "Images have already been aperture-masked."
     
-    #CR Removal is now done in an earlier step (but slower... talk to Steve about this)
-#     #Cosmic ray removal
-#     firstimage = openfits(objlists[0][0])
-#     crtoggle = firstimage[0].header.get("fpcosmic")
-#     firstimage.close()
-#     if crtoggle is None:
-#         print "Cosmic-ray correcting images..."
-#         cosmic_ray_remove(singextlist)
-#     else: print "Images have already been cosmic-ray corrected."
-    
-    #Uncertainty images are now an extension
-#     #Create uncertainty images for the object files
-#     uncertlists = []
-#     for i in range(len(objlists)):
-#         uncertlists.append([])
-#         for j in range(len(objlists[i])):
-#             uncertlists[i].append(splitext(objlists[i][j])[0]+'_unc'+splitext(objlists[i][j])[1])
-#     if not isfile(uncertlists[0][0]):
-#         print "Generating uncertainty images..."
-#         for i in range(len(objlists)):
-#             for j in range(len(objlists[i])):
-#                 print "Writing uncertainty image "+uncertlists[i][j]
-#                 image = openfits(objlists[i][j])
-#                 image[0].data = np.sqrt(image[0].data)
-#                 image.writeto(uncertlists[i][j])
-#                 image.close()
-#     else: print "Uncertainty images already exist."
-    
     #Masking bad pixels
     for objlist in objlists:
         for i in range(len(objlist)):
             if isfile(splitext(split(objlist[i])[1])[0]+".reg"):
-                print "Adding regions from file "+splitext(split(objlist[i])[1])[0]+".reg to the bad pixel mask"
-                mask_regions(objlist[i],splitext(split(objlist[i])[1])[0]+".reg")
+                print ("Adding regions from file "+
+                       splitext(split(objlist[i])[1])[0]+
+                       ".reg to the bad pixel mask.")
+                mask_regions(objlist[i],
+                             splitext(split(objlist[i])[1])[0]+".reg")
     
     #Image Flattening
-    firstimage = openfits(objlists[0][0])
-    flattog = firstimage[0].header.get("fpflat")
+    firstimage = FPImage(objlists[0][0])
+    flattog = firstimage.flattog
     firstimage.close()
     if flattog is None:
         print "Flattening images..."
         if len(flatlist) == 0:
             while True:
                 print "Uh oh! No flatfield exposure found!"
-                flatpath = raw_input("Enter path to external flat image: (leave blank to skip flattening) ")
+                flatpath = raw_input("Enter path to external flat image: "+
+                                     "(leave blank to skip flattening) ")
                 if flatpath == "" or isfile(flatpath): break
         else:
             combine_flat(flatlist,"flat.fits")
@@ -720,13 +721,14 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     else: print "Images have already been flattened."
     
     #Measure stellar FWHMs
-    firstimage = openfits(objlists[0][0])
-    fwhm = firstimage[0].header.get("fpfwhm")
+    firstimage = FPImage(objlists[0][0])
+    fwhm = firstimage.fwhm
     firstimage.close()
     if fwhm is None: dofwhm = True
     else:
         while True:
-            yn = raw_input("Seeing FWHM has already been measured. Redo this? (y/n) ")
+            yn = raw_input("Seeing FWHM has already been measured. "+
+                           "Redo this? (y/n) ")
             if "n" in yn or "N" in yn:
                 dofwhm = False
                 break
@@ -740,16 +742,18 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     
     #Find image centers using ghost pairs
     for i in range(len(objlists)):
-        firstimage = openfits(objlists[i][0])
-        xcen = firstimage[0].header.get("fpxcen")
-        deghosted = firstimage[0].header.get("fpghost")
+        firstimage = FPImage(objlists[i][0])
+        xcen = firstimage.xcen
+        deghosted = firstimage.ghosttog
         firstimage.close()
         if deghosted is None:
             if xcen is None:
                 ghosttog = True
             else:
                 while True:
-                    yn = raw_input("Optical centers already measured for object "+list_of_objs[i]+". Redo this? (y/n) ")
+                    yn = raw_input("Optical centers already measured for "+
+                                   "object "+list_of_objs[i]+
+                                   ". Redo this? (y/n) ")
                     if "n" in yn or "N" in yn:
                         ghosttog = False
                         break
@@ -757,19 +761,22 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                         ghosttog = True
                         break
             if ghosttog:
-                print "Identifying optical centers for object "+list_of_objs[i]+". This may take a while for crowded fields..."
+                print ("Identifying optical centers for object "+
+                       list_of_objs[i]+
+                       ". This may take a while for crowded fields...")
                 find_ghost_centers(objlists[i])
     
     #Deghost images
-    firstimage = openfits(objlists[0][0])
-    deghosted = firstimage[0].header.get("fpghost")
-    firstimage.close()
-    if deghosted is None:
-        print "Deghosting images..."
-        for i in range(len(objlists)):
+    for i in range(len(objlists)):
+        firstimage = FPImage(objlists[i][0])
+        deghosted = firstimage.ghosttog
+        firstimage.close()
+        if deghosted is None:
+            print "Deghosting images for object "+list_of_objs[i]+"..."
             for j in range(len(objlists[i])):
                 deghost(objlists[i][j],g=0.04)
-    else: print "Images have already been deghosted."
+        else: print ("Images for object "+list_of_objs[i]+
+                     " have already been deghosted.")
 
     #Make separate directories for each object.
     # This is the first bit since 'singext' to create a new directory, because
@@ -778,7 +785,8 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     for i in range(len(objlists)):
         if isdir(list_of_objs[i].replace(" ", "")):
             while True:
-                yn = raw_input("A directory for object "+list_of_objs[i]+" already exists. Recreate? (y/n) ")
+                yn = raw_input("A directory for object "+list_of_objs[i]+
+                               " already exists. Recreate? (y/n) ")
                 if "n" in yn or "N" in yn:
                     do_copy = False
                     break
@@ -790,47 +798,59 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         if do_copy:
             mkdir(list_of_objs[i].replace(" ", ""))
             for j in range(len(objlists[i])):
-                copyfile(objlists[i][j],join(list_of_objs[i].replace(" ", ""),split(objlists[i][j])[1]))
+                copyfile(objlists[i][j],
+                         join(list_of_objs[i].replace(" ", ""),
+                              split(objlists[i][j])[1]))
         for j in range(len(objlists[i])):
-            objlists[i][j] = join(list_of_objs[i].replace(" ", ""),split(objlists[i][j])[1])
-    #Update the filter lists (THIS IS TERRIBLE AND I SHOULD HAVE USED POINTERS AND I'M SO SORRY)
+            objlists[i][j] = join(list_of_objs[i].replace(" ", ""),
+                                  split(objlists[i][j])[1])
+    #Update the filter lists
     for i in range(len(filtlists)):
         for j in range(len(filtlists[i])):
             for k in range(len(objlists)):
                 for l in range(len(objlists[k])):
-                    if split(filtlists[i][j])[1]==split(objlists[k][l])[1]: filtlists[i][j] = objlists[k][l]
+                    if split(filtlists[i][j])[1]==split(objlists[k][l])[1]:
+                        filtlists[i][j] = objlists[k][l]
     
     #Image alignment and normalization
     for i in range(len(objlists)):
-        firstimage = openfits(objlists[i][0])
-        aligned = firstimage[0].header.get("fpphot")
+        firstimage = FPImage(objlists[i][0])
+        aligned = firstimage.phottog
         firstimage.close()
         if aligned is None:
-            print "Aligning and normalizing images for object "+list_of_objs[i]+"..."
+            print ("Aligning and normalizing images for object "
+                   +list_of_objs[i]+"...")
             align_norm(objlists[i])
-        else: print "Images for object "+list_of_objs[i]+" have already been aligned and normalized."
+        else: print ("Images for object "+list_of_objs[i]+
+                     " have already been aligned and normalized.")
         
     #Make a median image for each object
     for i in range(len(objlists)):
         if isfile(join(list_of_objs[i].replace(" ", ""),"median.fits")):
             while True:
-                yn = raw_input("Median image for object "+list_of_objs[i]+" already exists. Replace it? (y/n) ")
+                yn = raw_input("Median image for object "+list_of_objs[i]+
+                               " already exists. Replace it? (y/n) ")
                 if "n" in yn or "N" in yn:
                     break
                 elif "y" in yn or "Y" in yn:
-                    make_median(objlists[i],join(list_of_objs[i].replace(" ", ""),"median.fits"))
+                    make_median(objlists[i],
+                                join(list_of_objs[i].replace(" ", ""),
+                                     "median.fits"))
                     break
-        else: make_median(objlists[i],join(list_of_objs[i].replace(" ", ""),"median.fits"))
+        else: make_median(objlists[i],
+                          join(list_of_objs[i].replace(" ", ""),
+                               "median.fits"))
 
     #Wavelength calibrations
     for i in range(len(list_of_filts)):
         #Do a separate calibration for each filter
-        firstimage = openfits(filtlists[i][0])
-        calf = firstimage[0].header.get("fpcalf")
+        firstimage = FPImage(filtlists[i][0])
+        calf = firstimage.calf
         firstimage.close()
         if not(calf is None):
             while True:
-                yn = raw_input("Wavelength solution already found for filter "+list_of_filts[i]+". Redo it? (y/n) ")
+                yn = raw_input("Wavelength solution already found for filter "+
+                               list_of_filts[i]+". Redo it? (y/n) ")
                 if "n" in yn or "N" in yn:
                     break
                 elif "y" in yn or "Y" in yn:
@@ -841,19 +861,24 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     #Sky ring removal
     for i in range(len(objlists)):
         #Check to see if sky rings have already been removed
-        firstimage = openfits(objlists[i][0])
-        deringed = firstimage[0].header.get("fpdering")
+        firstimage = FPImage(objlists[i][0])
+        deringed = firstimage.ringtog
         firstimage.close()
         if deringed is None:
             print "Subtracting sky rings for object "+list_of_objs[i]+"..."
-            sub_sky_rings(objlists[i],[join(list_of_objs[i].replace(" ", ""),"median.fits")]*len(objlists[i]))
-        else: print "Sky ring subtraction already done for object "+list_of_objs[i]
+            sub_sky_rings(objlists[i],
+                          ([join(list_of_objs[i].replace(" ", "")
+                                 ,"median.fits")] * 
+                           len(objlists[i])))
+        else: print ("Sky ring subtraction already done for object "
+                     +list_of_objs[i])
     
     #Creation of data cube and convolution to uniform PSF
     for i in range(len(objlists)):
         if isdir(list_of_objs[i].replace(" ", "")+"_cube"):
             while True:
-                yn = raw_input("A data cube for object "+list_of_objs[i]+" already exists. Recreate? (y/n) ")
+                yn = raw_input("A data cube for object "+list_of_objs[i]+
+                               " already exists. Recreate? (y/n) ")
                 if "n" in yn or "N" in yn:
                     do_create = False
                     break
@@ -865,13 +890,15 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         if do_create:
             mkdir(list_of_objs[i].replace(" ", "")+"_cube")
             for j in range(len(objlists[i])):
-                image = openfits(objlists[i][j])
-                fwhm = image[0].header["fpfwhm"]
+                image = FPImage(objlists[i][j])
+                fwhm = image.fwhm
                 if j==0: largestfwhm = fwhm
                 if fwhm>largestfwhm: largestfwhm=fwhm
                 image.close()
             while True:
-                user_fwhm = raw_input("Enter desired final fwhm or leave blank to use default ("+str(largestfwhm)+" pix) ")
+                prompt = ("Enter desired final fwhm or leave blank to use"+
+                          " default ("+str(largestfwhm)+" pix) ")
+                user_fwhm = raw_input(prompt)
                 if user_fwhm == "":
                     user_fwhm = largestfwhm
                     break
@@ -880,13 +907,15 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                     except ValueError: print "That wasn't a valid number..."
                     else:
                         if user_fwhm<largestfwhm:
-                            print "Final fwhm must exceed "+str(largestfwhm)+" pixels."
+                            print ("Final fwhm must exceed "+
+                                   str(largestfwhm)+" pixels.")
                         else: break
             desired_fwhm = user_fwhm
             for j in range(len(objlists[i])):
-                make_final_image(objlists[i][j], #Input image
-                                 join(list_of_objs[i].replace(" ", "")+"_cube",split(objlists[i][j])[1]), #Output image
-                                 desired_fwhm, #Desired final FWHM
+                make_final_image(objlists[i][j],
+                                 join(list_of_objs[i].replace(" ", "")+"_cube"
+                                      ,split(objlists[i][j])[1]),
+                                 desired_fwhm,
                                  clobber=True)
     
     #Get final lists for the velocity map fitting for each object
@@ -894,23 +923,28 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     for i in range(len(list_of_objs)):
         final_lists.append([])
         for j in range(len(objlists[i])):
-            final_lists[i].append(join(list_of_objs[i].replace(" ", "")+"_cube",split(objlists[i][j])[1]))
+            final_lists[i].append(join(list_of_objs[i].replace(" ", "")+
+                                       "_cube",split(objlists[i][j])[1]))
             
     #Shift to solar velocity frame
     for i in range(len(list_of_objs)):
-        firstimage = openfits(final_lists[i][0])
-        velshift = firstimage[0].header.get("fpsolar")
+        firstimage = FPImage(final_lists[i][0])
+        velshift = firstimage.solarvel
         firstimage.close()
         if velshift is None:
-            print "Performing solar velocity shift for object "+list_of_objs[i]+"..."
+            print ("Performing solar velocity shift for object "
+                   +list_of_objs[i]+"...")
             solar_velocity_shift(final_lists[i], rest_wave)
-        else: print "Solar velocity shift for object "+list_of_objs[i]+" already done."
+        else: print ("Solar velocity shift for object "+
+                     list_of_objs[i]+" already done.")
     
     #Velocity map fitting
     for i in range(len(list_of_objs)):
-        if (isfile(join(list_of_objs[i].replace(" ", "")+"_cube","velocity.fits"))):
+        if (isfile(join(list_of_objs[i].replace(" ", "")+
+                        "_cube","velocity.fits"))):
             while True:
-                yn = raw_input("Velocity map already fitted for object "+list_of_objs[i]+". Redo this? (y/n) ")
+                yn = raw_input("Velocity map already fitted for object "+
+                               list_of_objs[i]+". Redo this? (y/n) ")
                 if "n" in yn or "N" in yn:
                     domap = False
                     break

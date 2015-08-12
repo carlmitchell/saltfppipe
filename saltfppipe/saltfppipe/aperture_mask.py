@@ -1,5 +1,4 @@
-from astropy.io.fits import open as openfits
-import numpy as np
+from saltfppipe.fp_image_class import FPImage
 
 def aperture_mask(fnlist, axcen, aycen, arad):
     """Opens a series of images and masks pixels outside a circular aperture.
@@ -16,12 +15,13 @@ def aperture_mask(fnlist, axcen, aycen, arad):
     """
     
     for i in range(len(fnlist)):
-        print "Masking pixels outside aperture for image "+str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i]
-        image = openfits(fnlist[i],mode="update")
-        xgrid, ygrid = np.meshgrid(np.arange(image[1].data.shape[1]),np.arange(image[1].data.shape[0]))
-        image[1].data[np.power((xgrid-axcen),2) + np.power((ygrid-aycen),2) > np.power(arad,2)] = 0
-        image[3].data[np.power((xgrid-axcen),2) + np.power((ygrid-aycen),2) > np.power(arad,2)] = 1
-        image[0].header["fpaxcen"] = axcen
-        image[0].header["fpaycen"] = aycen
-        image[0].header["fparad"] = arad
+        print ("Masking pixels outside aperture for image "+
+               str(i+1)+" of "+str(len(fnlist))+": "+fnlist[i])
+        image = FPImage(fnlist[i],update=True)
+        rgrid = image.rarray(axcen, aycen)
+        image.inty[rgrid>arad] = 0
+        image.badp[rgrid>arad] = 1
+        image.axcen = axcen
+        image.aycen = aycen
+        image.arad = arad
         image.close()

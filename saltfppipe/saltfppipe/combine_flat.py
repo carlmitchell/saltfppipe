@@ -1,8 +1,8 @@
-from astropy.io.fits import open as openfits
-from astropy.io.fits import writeto as writefits
+from astropy.io import fits
 import numpy as np
+from saltfppipe.fp_image_class import FPImage
 
-def combine_flat(flatlist,outfilepath="flat.fits"):
+def combine_flat(flatlist, outfilepath="flat.fits"):
     """Combines a series of flatfield exposures to create a single flatfield
     image. Uses only the information contained inside the RSS aperture, which
     is the only significant difference between this routine and the familiar
@@ -14,19 +14,20 @@ def combine_flat(flatlist,outfilepath="flat.fits"):
     
     """
     
-    imagelist = []
+    images = []
     for i in range(len(flatlist)):
-        imagelist.append(openfits(flatlist[i]))
-        xgrid, ygrid = np.meshgrid(np.arange(imagelist[i][1].data.shape[1]),np.arange(imagelist[i][1].data.shape[0]))
-        imagelist[i][1].data=imagelist[i][1].data/np.median(imagelist[i][1].data[np.power((xgrid-imagelist[i][0].header["fpaxcen"]),2)+np.power((ygrid-imagelist[i][0].header["fpaycen"]),2)<np.power(imagelist[i][0].header["fparad"],2)])
-    imagestack = np.empty((len(flatlist),imagelist[0][1].data.shape[0],imagelist[0][1].data.shape[1]))
+        images.append(FPImage(flatlist[i]))
+        rgrid = images[i].rarray(images[i].axcen,
+                                 images[i].aycen)
+        images[i].inty /= np.median(images[i].inty[rgrid<images[i].arad])
+    imagestack = np.empty((len(flatlist),images[0].ysize,images[0].xsize))
     for i in range(len(flatlist)):
-        imagestack[i,:,:] = imagelist[i][1].data
+        imagestack[i,:,:] = images[i].inty
     flatarray = np.median(imagestack,axis=0)
     flatarray[flatarray<0.000001]=0
-    writefits(outfilepath,flatarray,clobber=True)
+    fits.writeto(outfilepath,flatarray,clobber=True)
     
     #Close images
-    for i in range(len(flatlist)): imagelist[i].close()
+    for i in range(len(flatlist)): images[i].close()
     
     return
