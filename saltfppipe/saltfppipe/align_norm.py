@@ -1,11 +1,61 @@
-from astropy.io import fits
 import numpy as np
 from sys import exit as crash
-from os import remove
 import matplotlib.pyplot as plt
 from photutils import daofind, CircularAperture, aperture_photometry
-from pyraf import iraf
 from saltfppipe.fp_image_class import FPImage
+
+def imshift(fp_image,xshift,yshift):
+    """Shifts an FPImage object's arrays by the values xshift and yshift.
+    Treats the variance and bad pixel mask appropriately.
+    
+    The direction of the shifts is such that the image will be shifted right
+    by a positive xshift and upwards by a positive yshift.
+    
+    """
+    
+    #Python's "int" function is weirdly defined
+    if xshift<0: xshift -= 1
+    if yshift<0: yshift -= 1
+    
+    #Calculate integer and fractional parts of the shifts
+    xint = int(xshift)
+    xfrac1 = abs(xshift - int(xshift))
+    xfrac2 = 1 - xfrac1
+    yint = int(yshift)
+    yfrac1 = abs(yshift - int(yshift))
+    yfrac2 = 1 - yfrac1
+    
+    xsize, ysize = fp_image.xsize, fp_image.ysize
+    
+    #Shift the intensity array
+    inty = fp_image.inty
+    new_inty = np.zeros_like(inty)
+    new_inty[max(0,yint):min(ysize,ysize+yint),max(0,xint):min(xsize,xsize+xint)] += xfrac2*yfrac2*inty[max(0,-yint):min(ysize,ysize-yint),max(0,-xint):min(xsize,xsize-xint)]
+    new_inty[max(0,yint):min(ysize,ysize+yint),max(0,xint+1):min(xsize,xsize+xint+1)] += xfrac1*yfrac2*inty[max(0,-yint):min(ysize,ysize-yint),max(0,-xint-1):min(xsize,xsize-xint-1)]
+    new_inty[max(0,yint+1):min(ysize,ysize+yint+1),max(0,xint):min(xsize,xsize+xint)] += xfrac2*yfrac1*inty[max(0,-yint-1):min(ysize,ysize-yint-1),max(0,-xint):min(xsize,xsize-xint)]
+    new_inty[max(0,yint+1):min(ysize,ysize+yint+1),max(0,xint+1):min(xsize,xsize+xint+1)] += xfrac1*yfrac1*inty[max(0,-yint-1):min(ysize,ysize-yint-1),max(0,-xint-1):min(xsize,xsize-xint-1)]
+    fp_image.inty = new_inty
+    
+    #Shift the bad pixel array
+    badp = fp_image.badp
+    new_badp = np.zeros_like(badp)
+    new_badp[max(0,yint):min(ysize,ysize+yint),max(0,xint):min(xsize,xsize+xint)] += xfrac2*yfrac2*badp[max(0,-yint):min(ysize,ysize-yint),max(0,-xint):min(xsize,xsize-xint)]
+    new_badp[max(0,yint):min(ysize,ysize+yint),max(0,xint+1):min(xsize,xsize+xint+1)] += xfrac1*yfrac2*badp[max(0,-yint):min(ysize,ysize-yint),max(0,-xint-1):min(xsize,xsize-xint-1)]
+    new_badp[max(0,yint+1):min(ysize,ysize+yint+1),max(0,xint):min(xsize,xsize+xint)] += xfrac2*yfrac1*badp[max(0,-yint-1):min(ysize,ysize-yint-1),max(0,-xint):min(xsize,xsize-xint)]
+    new_badp[max(0,yint+1):min(ysize,ysize+yint+1),max(0,xint+1):min(xsize,xsize+xint+1)] += xfrac1*yfrac1*badp[max(0,-yint-1):min(ysize,ysize-yint-1),max(0,-xint-1):min(xsize,xsize-xint-1)]
+    new_badp[new_badp != 0] = 1
+    fp_image.badp = new_badp
+    
+    #Shift the variance array
+    vari = fp_image.vari
+    new_vari = np.zeros_like(vari)
+    new_vari[max(0,yint):min(ysize,ysize+yint),max(0,xint):min(xsize,xsize+xint)] += xfrac2**2*yfrac2**2*vari[max(0,-yint):min(ysize,ysize-yint),max(0,-xint):min(xsize,xsize-xint)]
+    new_vari[max(0,yint):min(ysize,ysize+yint),max(0,xint+1):min(xsize,xsize+xint+1)] += xfrac1**2*yfrac2**2*vari[max(0,-yint):min(ysize,ysize-yint),max(0,-xint-1):min(xsize,xsize-xint-1)]
+    new_vari[max(0,yint+1):min(ysize,ysize+yint+1),max(0,xint):min(xsize,xsize+xint)] += xfrac2**2*yfrac1**2*vari[max(0,-yint-1):min(ysize,ysize-yint-1),max(0,-xint):min(xsize,xsize-xint)]
+    new_vari[max(0,yint+1):min(ysize,ysize+yint+1),max(0,xint+1):min(xsize,xsize+xint+1)] += xfrac1**2*yfrac1**2*vari[max(0,-yint-1):min(ysize,ysize-yint-1),max(0,-xint-1):min(xsize,xsize-xint-1)]
+    fp_image.vari = new_vari
+    
+    return fp_image
 
 class PlotFluxRatios:
     def __init__(self,goodfluxrats,fluxratavg,fluxratsig):
@@ -89,7 +139,7 @@ def calc_norm(counts, dcounts):
             star = np.argmin(np.abs(goodcounts[xcoo,:]-normplot.ycoo))
             goodcounts = np.delete(goodcounts,star,1)
     
-    return countavg, countsig
+    return countavg, countsig/np.sqrt(len(countsig))
     
 def align_norm(fnlist, tolerance=3, thresh=3.5):
     """Aligns a set of images to each other, as well as normalizing the images
@@ -151,7 +201,7 @@ def align_norm(fnlist, tolerance=3, thresh=3.5):
     skysig = np.empty(len(fnlist))
     for i in range(len(fnlist)):
         image = FPImage(fnlist[i])
-        skyavg[i], skysig[i] = image.skybackground()
+        skyavg[i], skysig[i], _skyvar = image.skybackground()
         image.close()
         
     #Identify the stars in each image
@@ -223,20 +273,9 @@ def align_norm(fnlist, tolerance=3, thresh=3.5):
         counts[i] = phot_table["aperture_sum"]
         dcounts[i] = phot_table["aperture_sum_err"]
         image.close()
-    
-    #Calculate the normalizations
+
+    #Calculate the shifts and normalizations
     norm, dnorm = calc_norm(counts,dcounts)
-    
-    #Normalize the images and adjust the variance plane
-    for i in range(len(fnlist)):
-        print "Normalizing image "+fnlist[i]
-        image = FPImage(fnlist[i],update=True)
-        image.inty /= norm[i]
-        image.vari = (image.vari/norm[i]**2 + 
-                      image.inty**2*dnorm[i]**2/norm[i]**2)
-        image.close()
-    
-    #Calculate the shifts
     for i in range(x.shape[1]):
         x[:,i] = -(x[:,i] - x[0,i])
         y[:,i] = -(y[:,i] - y[0,i])
@@ -244,131 +283,29 @@ def align_norm(fnlist, tolerance=3, thresh=3.5):
     yshifts = np.average(y,axis=1)
     
     #Shift the images and update headers
-    iraf.images(_doprint=0)
-    iraf.immatch(_doprint=0)
     for i in range(len(fnlist)):
-        #This is incredibly stupid, but works. Iraf is annoying.
-        print "Shifting image "+fnlist[i]
-        iraf.geotran(input=fnlist[i]+"[1]",
-                     output="temp1.fits",
-                     geometry="linear",
-                     database="",
-                     transforms="",
-                     xin="INDEF",
-                     yin="INDEF",
-                     xshift=xshifts[i],
-                     yshift=yshifts[i],
-                     xout="INDEF",
-                     yout="INDEF",
-                     xmag="INDEF",
-                     ymag="INDEF",
-                     xrotation="INDEF",
-                     yrotation="INDEF",
-                     xmin="INDEF",
-                     xmax="INDEF",
-                     ymin="INDEF",
-                     ymax="INDEF",
-                     xscale=1.0,
-                     yscale=1.0,
-                     ncols="INDEF",
-                     nlines="INDEF",
-                     xsample=1.0,
-                     ysample=1.0,
-                     interpolant="linear",
-                     boundary="nearest",
-                     constant=0.0,
-                     fluxconserve="yes",
-                     nxblock=512,
-                     nyblock=512,
-                     verbose="no")
-        iraf.geotran(input=fnlist[i]+"[2]",
-                     output="temp2.fits",
-                     geometry="linear",
-                     database="",
-                     transforms="",
-                     xin="INDEF",
-                     yin="INDEF",
-                     xshift=xshifts[i],
-                     yshift=yshifts[i],
-                     xout="INDEF",
-                     yout="INDEF",
-                     xmag="INDEF",
-                     ymag="INDEF",
-                     xrotation="INDEF",
-                     yrotation="INDEF",
-                     xmin="INDEF",
-                     xmax="INDEF",
-                     ymin="INDEF",
-                     ymax="INDEF",
-                     xscale=1.0,
-                     yscale=1.0,
-                     ncols="INDEF",
-                     nlines="INDEF",
-                     xsample=1.0,
-                     ysample=1.0,
-                     interpolant="linear",
-                     boundary="nearest",
-                     constant=0.0,
-                     fluxconserve="yes",
-                     nxblock=512,
-                     nyblock=512,
-                     verbose="no")
-        iraf.geotran(input=fnlist[i]+"[3]",
-                     output="temp3.fits",
-                     geometry="linear",
-                     database="",
-                     transforms="",
-                     xin="INDEF",
-                     yin="INDEF",
-                     xshift=xshifts[i],
-                     yshift=yshifts[i],
-                     xout="INDEF",
-                     yout="INDEF",
-                     xmag="INDEF",
-                     ymag="INDEF",
-                     xrotation="INDEF",
-                     yrotation="INDEF",
-                     xmin="INDEF",
-                     xmax="INDEF",
-                     ymin="INDEF",
-                     ymax="INDEF",
-                     xscale=1.0,
-                     yscale=1.0,
-                     ncols="INDEF",
-                     nlines="INDEF",
-                     xsample=1.0,
-                     ysample=1.0,
-                     interpolant="linear",
-                     boundary="nearest",
-                     constant=0.0,
-                     fluxconserve="yes",
-                     nxblock=512,
-                     nyblock=512,
-                     verbose="no")
+        print "Shifting and normalizing image "+fnlist[i]
+        
         #Open the image in question
         image = FPImage(fnlist[i],update=True)
-        #Update the data arrays with the appropriate shifted frames
-        temp = fits.open("temp1.fits")
-        image.inty = temp[0].data
-        temp.close()
-        temp = fits.open("temp2.fits")
-        image.vari = temp[0].data
-        temp.close()
-        temp = fits.open("temp3.fits")
-        image.badp = temp[0].data
-        #And pixel with partially bad pixel data in it should be bad
-        image.badp[image.badp>0]=1
-        temp.close()
-        #Update the image headers
+        
+        #Update header values
         image.phottog="True"
         image.xcen+=xshifts[i]
         image.ycen+=yshifts[i]
         image.axcen+=xshifts[i]
         image.aycen+=yshifts[i]
-        #Close the image and delete temp files
+        image.dnorm = dnorm[i]
+        
+        #Perform the shift
+        image = imshift(image,xshifts[i],yshifts[i])
+
+        #Perform the normalization
+        image.inty /= norm[i]
+        image.vari = (image.vari/norm[i]**2 + 
+                      image.inty**2*dnorm[i]**2/norm[i]**2)
+        
+        #Close the image
         image.close()
-        remove("temp1.fits")
-        remove("temp2.fits")
-        remove("temp3.fits")
 
     return

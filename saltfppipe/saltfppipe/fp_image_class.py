@@ -59,6 +59,7 @@ class FPImage:
         self.fwhm = self.header.get("fpfwhm")
         self.calf = self.header.get("fpcalf")
         self.solarvel = self.header.get("fpsolar")
+        self.dnorm = self.header.get("fpdnorm")
 
         #Boolean header keywords
         self.phottog = self.header.get("fpphot")
@@ -70,6 +71,9 @@ class FPImage:
 
         #Rescale F by the pixel binning
         if not self.f is None: self.f /= int(self.bins.split()[0])
+
+        #If F is zero, it shouldn't be. Someone just effed up the headers.
+        if self.f == 0: self.f = None
         
     def close(self):
         """Closes the open file. If the file was opened in update mode,
@@ -120,6 +124,7 @@ class FPImage:
         update_header_kw(self.header, "fpfwhm", self.fwhm)
         update_header_kw(self.header, "fpcalf", self.calf)
         update_header_kw(self.header, "fpsolar", self.solarvel)
+        update_header_kw(self.header, "fpdnorm", self.dnorm)
         
         #Update boolean pipeline headers
         update_header_kw(self.header, "fpphot", self.phottog)
@@ -171,7 +176,7 @@ class FPImage:
         90th percentile of the image.
         
         Outputs:
-        skyavg, skysig
+        skyavg, skysig, skyvar
         
         """
         
@@ -180,6 +185,6 @@ class FPImage:
         highval = np.percentile(data,90)
         data = data[np.logical_and(data>lowval,data<highval)]
         
-        return np.average(data), np.std(data)
+        return np.average(data), np.std(data), np.std(data)/np.sqrt(len(data))
     
         

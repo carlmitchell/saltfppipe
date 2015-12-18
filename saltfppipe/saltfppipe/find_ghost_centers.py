@@ -110,7 +110,7 @@ def verify_center(fnlist, objxs, objys, ghoxs, ghoys, xcens, ycens):
         print "All centers approved!"
         return True
     
-def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
+def find_ghost_centers(fnlist, tolerance=3, thresh=4.5, guess=None):
     """This routine finds the most likely optical center for a series of images
     by attempting to match ghost reflections of stars with their stellar
     counterparts. It can be rather slow if the fields are very dense with stars,
@@ -141,7 +141,10 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
               Default is 3.5 (times SkySigma). Decrease if center positions
               aren't being found accurately. Increase for crowded fields to
               decrease computation time.
-    
+    guess -> Optional. If you already have an idea of where the center should
+             be, you'd put it here. Should be a 2-long iterable, with guess[0]
+             being the X center guess, and guess[1] being the y center guess.
+
     Outputs:
     xcenlist -> List of image center X coordinates
     ycenlist -> List of image center Y coordinates
@@ -174,7 +177,7 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
     skysig = np.empty(len(fnlist))
     for i in range(len(fnlist)):
         image = FPImage(fnlist[i])
-        skyavg[i], skysig[i] = image.skybackground()
+        skyavg[i], skysig[i], _skyvar = image.skybackground()
         image.close()
         
     #Identify the stars in each image
@@ -205,53 +208,58 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5):
                 maglists[i].append(sources[j][-1])
         image.close()
     
-    #Use the identified stars to come up with a center guess for each image
-    xcen = np.zeros(len(fnlist))
-    ycen = np.zeros(len(fnlist))
-    goodcen = np.zeros(len(fnlist))
-    for i in range(len(fnlist)):
-        N = len(xlists[i])
-        xcenarray = np.zeros(((N*N-N)/2))
-        ycenarray = np.zeros(((N*N-N)/2))
-        dist2array = np.zeros(((N*N-N)/2))
-        sub1array = np.zeros(((N*N-N)/2))
-        index = 0
-        #All "possible" centers for all possible pairs of stars
-        for j in range(N):
-            for k in range(j+1,N):
-                xcenarray[index] = xlists[i][j]+xlists[i][k]
-                ycenarray[index] = ylists[i][j]+ylists[i][k]
-                index = index+1
-        xcenarray, ycenarray = 0.5*xcenarray, 0.5*ycenarray
-        #Cross check the various possible centers against each other
-        for j in range(len(xcenarray)):
-            dist2array = ( (xcenarray-xcenarray[j])**2 +
-                           (ycenarray-ycenarray[j])**2 )
-            sub1array[j] = np.sum(dist2array<tolerance**2)
-        #Determine the locations of the "best" centers.
-        bestcenloc = np.where(sub1array==max(sub1array))[0]
-        #Now cross check JUST the best ones against each other
-        sub1array = np.zeros(len(bestcenloc))
-        xcenarray = xcenarray[bestcenloc]
-        ycenarray = ycenarray[bestcenloc]
-        for j in range(len(bestcenloc)):
-            dist2array = ( (xcenarray-xcenarray[j])**2 +
-                           (ycenarray-ycenarray[j])**2 )
-            sub1array[j] = np.sum(dist2array<tolerance**2)
-        #Again, determine the locations of the "best" centers.
-        bestcenloc = np.where(sub1array==max(sub1array))[0]
-        xcen[i] = np.average(xcenarray[bestcenloc])
-        ycen[i] = np.average(ycenarray[bestcenloc])
-         
-    #Cross-check the various image's centers against each other
-    for i in range(len(fnlist)):
-        dist2array = (xcen-xcen[i])**2 + (ycen-ycen[i])**2
-        goodcen[i] = np.sum(dist2array<tolerance**2)
+    if guess is None:
+        #Use the identified stars to come up with a center guess for each image
+        xcen = np.zeros(len(fnlist))
+        ycen = np.zeros(len(fnlist))
+        goodcen = np.zeros(len(fnlist))
+        for i in range(len(fnlist)):
+            N = len(xlists[i])
+            xcenarray = np.zeros(((N*N-N)/2))
+            ycenarray = np.zeros(((N*N-N)/2))
+            dist2array = np.zeros(((N*N-N)/2))
+            sub1array = np.zeros(((N*N-N)/2))
+            index = 0
+            #All "possible" centers for all possible pairs of stars
+            for j in range(N):
+                for k in range(j+1,N):
+                    xcenarray[index] = xlists[i][j]+xlists[i][k]
+                    ycenarray[index] = ylists[i][j]+ylists[i][k]
+                    index = index+1
+            xcenarray, ycenarray = 0.5*xcenarray, 0.5*ycenarray
+            #Cross check the various possible centers against each other
+            for j in range(len(xcenarray)):
+                dist2array = ( (xcenarray-xcenarray[j])**2 +
+                               (ycenarray-ycenarray[j])**2 )
+                sub1array[j] = np.sum(dist2array<tolerance**2)
+            #Determine the locations of the "best" centers.
+            bestcenloc = np.where(sub1array==max(sub1array))[0]
+            #Now cross check JUST the best ones against each other
+            sub1array = np.zeros(len(bestcenloc))
+            xcenarray = xcenarray[bestcenloc]
+            ycenarray = ycenarray[bestcenloc]
+            for j in range(len(bestcenloc)):
+                dist2array = ( (xcenarray-xcenarray[j])**2 +
+                               (ycenarray-ycenarray[j])**2 )
+                sub1array[j] = np.sum(dist2array<tolerance**2)
+            #Again, determine the locations of the "best" centers.
+            bestcenloc = np.where(sub1array==max(sub1array))[0]
+            xcen[i] = np.average(xcenarray[bestcenloc])
+            ycen[i] = np.average(ycenarray[bestcenloc])
+             
+        #Cross-check the various image's centers against each other
+        for i in range(len(fnlist)):
+            dist2array = (xcen-xcen[i])**2 + (ycen-ycen[i])**2
+            goodcen[i] = np.sum(dist2array<tolerance**2)
+        
+        #Determine where in the arrays the best fitting centers are
+        bestcenloc = np.where(goodcen==max(goodcen))[0]
+        bestxcen = np.average(xcen[bestcenloc])
+        bestycen = np.average(ycen[bestcenloc])
     
-    #Determine where in the arrays the best fitting centers are
-    bestcenloc = np.where(goodcen==max(goodcen))[0]
-    bestxcen = np.average(xcen[bestcenloc])
-    bestycen = np.average(ycen[bestcenloc])
+    else:
+        #Forced guess:
+        bestxcen, bestycen = guess[0], guess[1]
     
     #Now we want to improve the center for each image using the best guesses
     xcenlist = np.zeros(len(fnlist))

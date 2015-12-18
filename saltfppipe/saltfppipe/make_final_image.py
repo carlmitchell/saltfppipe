@@ -195,7 +195,7 @@ def make_final_image(input_image, output_image,
     image = FPImage(input_image)
     
     #Measure the sky background level in the input image
-    skyavg, skysig = image.skybackground()
+    skyavg, _truesig, skysig = image.skybackground()
     
     #Get various header keywords, crash if necessary
     intygrid = image.inty
@@ -229,15 +229,18 @@ def make_final_image(input_image, output_image,
     vargrid = image.vari
     badpixgrid = image.badp
     
-    #Add the sky background uncertainty to the uncertainty grid
-    vargrid = vargrid+skysig**2
-    
     #Convolve the variances appropriately
     new_vargrid = convolve_variance(vargrid, badpixgrid, kern)
     
+    #Add the sky background uncertainty to the uncertainty grid
+    vargrid = vargrid+skysig**2
+    
     #Create and convolve the wavelength array
-    rgrid = image.rarray(xcen, ycen)
-    wavegrid = wave0 / np.sqrt(1+rgrid**2/calf**2)
+    if image.wave is None:
+        rgrid = image.rarray(xcen, ycen)
+        wavegrid = wave0 / np.sqrt(1+rgrid**2/calf**2)
+    else:
+        wavegrid = image.wave
     new_wavegrid = convolve_wave(wavegrid, intygrid, badpixgrid, kern)
     
     #Convolve the intensity image
@@ -246,15 +249,18 @@ def make_final_image(input_image, output_image,
     image.fwhm = desired_fwhm #Update header FWHM keyword
     
     #Subtract the sky background from the image
-    intygrid[intygrid!=0] -= skyavg
+    new_intygrid[new_intygrid!=0] -= skyavg
     
     #Create a new fits extension for the wavelength array
-    waveheader = image.openimage[2].header.copy()
-    waveheader['EXTVER'] = 4
-    wavehdu = ImageHDU(data = new_wavegrid, header = waveheader, name = "WAVE")
-    image.openimage[1].header.set('WAVEEXT', 4,
-                                  comment='Extension for Wavelength Frame')
-    image.openimage.append(wavehdu)
+    if image.wave is None:
+        waveheader = image.openimage[2].header.copy()
+        waveheader['EXTVER'] = 4
+        wavehdu = ImageHDU(data = new_wavegrid,
+                           header = waveheader,
+                           name = "WAVE")
+        image.openimage[1].header.set('WAVEEXT', 4,
+                                      comment='Extension for Wavelength Frame')
+        image.openimage.append(wavehdu)
     
     #Put all of the convolved images in the right extensions
     image.inty = new_intygrid

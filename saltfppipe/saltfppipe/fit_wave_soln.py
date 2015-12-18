@@ -211,12 +211,13 @@ def fit_wave_soln(fnlist):
     objlist = []
     images = [FPImage(fn) for fn in fnlist]
     
-    #Check to make sure all images are from the same filter
-    matchfilts = [image.filter == images[0].filter for image in images]
-    if False in matchfilts:
-        print "Error! Some of these images are in different filters!"
-        crash()
-    
+    #No longer doing this. All filters should have same wavelength solution
+#     #Check to make sure all images are from the same filter
+#     matchfilts = [image.filter == images[0].filter for image in images]
+#     if False in matchfilts:
+#         print "Error! Some of these images are in different filters!"
+#         crash()
+#     
     #Separate ARCs and Object images and median-subtract Object images
     isarclist = [image.object == "ARC" for image in images]
     for i in range(len(isarclist)):
@@ -231,11 +232,22 @@ def fit_wave_soln(fnlist):
             medimage.close()
             objlist.append(images[i])
     
-    #Load wavelength libraries
-    arclib, nightlib = get_libraries(images[0].filter)
-    if arclib is None:
-        print "Error! Your filter isn't the wavelength library!"
-        crash()
+#     #Load wavelength libraries
+#     arclib, nightlib = get_libraries(images[0].filter)
+#     if arclib is None:
+#         print "Error! Your filter isn't the wavelength library!"
+#         crash()
+    filts = [image.filter for image in images]
+    arclibs = []
+    nightlibs = []
+    for i in range(len(fnlist)):
+        if isarclist[i]:
+            arclibs.append(get_libraries(filts[i])[0])
+        else:
+            nightlibs.append(get_libraries(filts[i])[1])
+        if get_libraries(filts[i])[0] is None:
+            print "Error! Filter "+filts[i]+" is not in the wavelength library!"
+            crash()
         
     #This next bit fits all of the rings that the user marks
     
@@ -308,11 +320,14 @@ def fit_wave_soln(fnlist):
     zo = []
     to = []
     ro = []
+    lib_o = []
     for i in range(len(objlist)):
         for j in range(len(radlists[i])):
             zo.append(objlist[i].z)
             to.append(objlist[i].jd)
             ro.append(radlists[i][j])
+            lib_o.append(nightlibs[i])
+            
     
     #Fit rings in the ARC images if there are any
     xcen = objlist[0].xcen
@@ -383,12 +398,14 @@ def fit_wave_soln(fnlist):
     za = []
     ta = []
     ra = []
+    lib_a = []
     for i in range(len(arclist)):
         for j in range(len(radlists[i])):
             za.append(arclist[i].z)
             ta.append(arclist[i].jd)
             ra.append(radlists[i][j])
-    
+            lib_a.append(arclibs[i])
+            
     #Print z's, r's, t's for debugging
 #     for i in range(len(za)):
 #         print za[i], ra[i], ta[i]
@@ -415,11 +432,10 @@ def fit_wave_soln(fnlist):
     master_r = np.array(ro+ra)
     master_z = np.array(zo+za)
     wavematch = np.zeros_like(master_r)
-    isnight = np.array([True]*len(ro)+[False]*len(ra))
     oldrms = 10000 #Really high initial RMS for comparisons
+    master_lib = lib_o+lib_a
     for i in range(len(master_r)):
-        if isnight[i]: lib = nightlib
-        else: lib = arclib
+        lib = master_lib[i]
         for j in range(len(lib)):
             #Assume the i'th ring is the j'th line
             Aguess = (lib[j]*np.sqrt(1+master_r[i]**2/Fguess**2)-
@@ -428,12 +444,8 @@ def fit_wave_soln(fnlist):
             waveguess = ((Aguess+Bguess*master_z)/
                          np.sqrt(1+master_r**2/Fguess**2))
             for k in range(len(master_r)):
-                if isnight[k]:
-                    wherematch = np.argmin(np.abs(nightlib-waveguess[k]))
-                    wavematch[k] = nightlib[wherematch]
-                else:
-                    wherematch = np.argmin(np.abs(arclib-waveguess[k]))
-                    wavematch[k] = arclib[wherematch]
+                wherematch = np.argmin(np.abs(master_lib[k]-waveguess[k]))
+                wavematch[k] = master_lib[k][wherematch]
             rms = np.sqrt(np.average((waveguess-wavematch)**2))
             if rms < oldrms:
                 #This is the new best solution. Keep it!

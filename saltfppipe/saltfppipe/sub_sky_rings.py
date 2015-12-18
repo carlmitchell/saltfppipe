@@ -222,6 +222,10 @@ def sub_sky_rings(fnlist,medfilelist):
         skywavelibs_extended[i] = list(skywavelibs_extended[i])
         #Close median image
         medimage.close()
+        #Try to fix the NaNs
+        mask = np.logical_not(np.isnan(spectrum_inty[i]))
+        spectrum_wave[i] = spectrum_wave[i][mask]
+        spectrum_inty[i] = spectrum_inty[i][mask]
     
     #Interactive plotting of ring profiles
     addedwaves = []
@@ -260,6 +264,7 @@ def sub_sky_rings(fnlist,medfilelist):
         #Fit the spectrum
         fitsuccess = True
         try:
+            #spectrum inty has NaNs here...
             fit = curve_fit(func_to_fit,spectrum_wave[i],
                             spectrum_inty[i],p0=guess)[0]
         except RuntimeError:
@@ -270,6 +275,9 @@ def sub_sky_rings(fnlist,medfilelist):
         fitcont = fit[0]
         fitintys = np.array(fit[1:len(waves_to_fit)+1])
         fitsigs = np.array(fit[len(waves_to_fit)+1:2*len(waves_to_fit)+1])
+        #Flip signs of negative sigma fits (sign degeneracy)
+        fitintys[fitsigs<0] = -1*fitintys[fitsigs<0]
+        fitsigs[fitsigs<0] = -1*fitsigs[fitsigs<0]
         
         #Make the subtracted plot array
         subarray = images[i].inty.copy()
@@ -330,14 +338,14 @@ def sub_sky_rings(fnlist,medfilelist):
         #Delete ring option
         if profile_plot.key == "s":
             nearest_wave = None
-            if profile_plot.axis in [1,3]:
+            if profile_plot.axis in [1,3] and len(waves_to_fit)!=0:
                 #The click was made in an image plot
                 clicked_radius = np.sqrt((profile_plot.xcoo - xcenlist[i])**2 + 
                                          (profile_plot.ycoo - ycenlist[i])**2)
                 near_index = np.argmin(np.abs((np.array(radiilist) - 
                                                clicked_radius)))
                 nearest_wave = waves_to_fit[near_index]
-            elif profile_plot.axis in [2,4]:
+            elif profile_plot.axis in [2,4] and len(waves_to_fit)!=0:
                 #The click was in a spectrum plot
                 clicked_wave = profile_plot.xcoo
                 near_index = np.argmin(np.abs(np.array(waves_to_fit) -
@@ -394,6 +402,7 @@ def sub_sky_rings(fnlist,medfilelist):
                 
         #Save option
         if profile_plot.key == "r":
+            print fnlist[i], waves_to_fit, fitintys, fitsigs
             final_fitted_waves[i] = waves_to_fit[:]
             final_fitted_intys[i] = fitintys[:]
             final_fitted_sigs[i] = fitsigs[:]

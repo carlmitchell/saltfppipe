@@ -7,7 +7,7 @@ from saltfppipe.fp_image_class import FPImage
 def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     """
     """
-    
+
     #Parameters
     c = 299792.458 #Speed of light (km/s)
     ha = 6562.81 #H-Alpha wavelength (ang)
@@ -27,7 +27,7 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
         intycube[:,:,i] = images[i].inty
         uncertcube[:,:,i] = np.sqrt(images[i].vari)
         badpixcube[:,:,i] = images[i].badp
-
+    
     #Create blank arrays for the velocity+etc fits
     contarray = np.zeros_like(images[0].inty)
     intyarray = np.zeros_like(images[0].inty)
@@ -35,6 +35,8 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     dcontarray = np.zeros_like(images[0].inty)
     dintyarray = np.zeros_like(images[0].inty)
     dwavearray = np.zeros_like(images[0].inty)
+    n2intyarray = np.zeros_like(images[0].inty)
+    dn2intyarray = np.zeros_like(images[0].inty)
     
     #Create x and y arrays for the "progress bar"
     numb_updates=20 #Number of progress updates
@@ -70,15 +72,17 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
 
             #Fit with voigtfit
             if np.sum(badpixs)<0.5*len(waves):
-                fit,err,_chi2 = voigtfit.voigtfit(waves,intys,uncerts,
-                                                  voigtfit.voigtguess(waves,intys),
-                                                  [True,True,True,True,True])
+                fit,err,_chi2 = voigtfit.voigtfit2(waves,intys,uncerts,
+                                                   voigtfit.voigtguess2(waves,intys),
+                                                   [True,True,True,True,False,True])
                 contarray[y,x] = fit[0]
                 intyarray[y,x] = fit[1]
                 wavearray[y,x] = fit[2]
+                n2intyarray[y,x] = fit[5]
                 dcontarray[y,x] = err[0]
                 dintyarray[y,x] = err[1]
                 dwavearray[y,x] = err[2]
+                dn2intyarray[y,x] = err[5]
                 
     #Convert wavelengths to velocities
     velarray = np.zeros_like(wavearray)
@@ -89,12 +93,16 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     dvelarray[mask] = c*dwavearray[mask]/ha
     
     #Save the output images
+    fits.writeto(join(outdir,"wave.fits"), wavearray, clobber=clobber)
     fits.writeto(join(outdir,"velocity.fits"), velarray, clobber=clobber)
     fits.writeto(join(outdir,"intensity.fits"), intyarray, clobber=clobber)
     fits.writeto(join(outdir,"continuum.fits"), contarray, clobber=clobber)
     fits.writeto(join(outdir,"dvelocity.fits"), dvelarray, clobber=clobber)
     fits.writeto(join(outdir,"dcontinuum.fits"), dcontarray, clobber=clobber)
     fits.writeto(join(outdir,"dintensity.fits"), dintyarray, clobber=clobber)
+    fits.writeto(join(outdir,"n2intensity.fits"), n2intyarray, clobber=clobber)
+    fits.writeto(join(outdir,"dn2intensity.fits"), dn2intyarray, clobber=clobber)
+    fits.writeto(join(outdir,"n2ratio.fits"), n2intyarray/intyarray, clobber=clobber)
 
     #Close input images
     for image in images: image.close()

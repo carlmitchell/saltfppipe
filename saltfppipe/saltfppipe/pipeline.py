@@ -674,10 +674,10 @@ def pipeline(rawdir = "raw", mode = "halpha"):
             if "y" in yn or "Y" in yn:
                 fnlist = verify_images(fnlist)
                 break
-        
+    
     #Make separate lists of the different fits files
     flatlist, list_of_objs, objlists, list_of_filts, filtlists = separate_lists(fnlist)
-
+    
     #Masking of pixels outside the aperture
     firstimage = FPImage(objlists[0][0])
     axcen = firstimage.axcen
@@ -688,7 +688,7 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         aperture_mask(fnlist,axcen,aycen,arad)
     else: print "Images have already been aperture-masked."
     
-    #Masking bad pixels
+    #Masking bad pixels from external region file
     for objlist in objlists:
         for i in range(len(objlist)):
             if isfile(splitext(split(objlist[i])[1])[0]+".reg"):
@@ -842,21 +842,22 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                                "median.fits"))
 
     #Wavelength calibrations
+    all_rings_list = []
     for i in range(len(list_of_filts)):
-        #Do a separate calibration for each filter
-        firstimage = FPImage(filtlists[i][0])
-        calf = firstimage.calf
-        firstimage.close()
-        if not(calf is None):
-            while True:
-                yn = raw_input("Wavelength solution already found for filter "+
-                               list_of_filts[i]+". Redo it? (y/n) ")
-                if "n" in yn or "N" in yn:
-                    break
-                elif "y" in yn or "Y" in yn:
-                    fit_wave_soln(filtlists[i])
-                    break
-        else: fit_wave_soln(filtlists[i])
+        all_rings_list = all_rings_list+filtlists[i]
+    firstimage = FPImage(all_rings_list[0])
+    calf = firstimage.calf
+    firstimage.close()
+    if not (calf is None):
+        while True:
+            yn = raw_input("Wavelength solution already found. "+
+                           "Redo it? (y/n) ")
+            if "n" in yn or "N" in yn:
+                break
+            elif "y" in yn or "Y" in yn:
+                fit_wave_soln(all_rings_list)
+                break
+    else: fit_wave_soln(all_rings_list)
     
     #Sky ring removal
     for i in range(len(objlists)):

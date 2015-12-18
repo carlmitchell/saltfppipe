@@ -1,6 +1,5 @@
 import numpy as np
 from astropy.io.fits import open as openfits
-from astropy.io.fits import writeto as writefits
 from os.path import join
 
 def make_clean_map(cubedir, clobber=False):
@@ -14,11 +13,12 @@ def make_clean_map(cubedir, clobber=False):
     sncut = float(raw_input("Enter signal-to-noise cutoff: "))
     minvel = float(raw_input("Enter minimum velocity: "))
     maxvel = float(raw_input("Enter maximum velocity: "))
-    mask = np.logical_and(snarray>sncut,np.logical_and(velimage[0].data>minvel, velimage[0].data<maxvel))
+    mask = np.logical_and(snarray>sncut,
+           np.logical_and(velimage[0].data>minvel,
+                          velimage[0].data<maxvel))
     print repr(np.sum(mask))+" pixels kept."
-    newvelarray = np.zeros_like(velimage[0].data)
-    newvelarray[mask] = velimage[0].data[mask]
-    writefits(join(cubedir,"cleanvelmap.fits"), newvelarray, clobber=clobber)
+    velimage[0].data[np.logical_not(mask)]=np.nan
+    velimage.writeto(join(cubedir,"cleanvelmap.fits"),clobber=True)
     velimage.close()
     intyimage.close()
     dcontimage.close()

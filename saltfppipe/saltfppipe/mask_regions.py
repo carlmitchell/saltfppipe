@@ -20,7 +20,7 @@ def mask_box(array,par):
     par[4]=np.mod(par[4],180)
     if par[4]>=90:
         par[4]-=90
-        par[2],par[3]=par[3],par[2]    
+        par[2],par[3]=par[3],par[2]
     par[4]*=np.pi/180
     par[3]*=.5
     par[2]*=.5
