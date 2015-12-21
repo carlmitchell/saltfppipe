@@ -402,7 +402,7 @@ def sub_sky_rings(fnlist,medfilelist):
                 
         #Save option
         if profile_plot.key == "r":
-            print fnlist[i], waves_to_fit, fitintys, fitsigs
+            #print fnlist[i], waves_to_fit, fitintys, fitsigs
             final_fitted_waves[i] = waves_to_fit[:]
             final_fitted_intys[i] = fitintys[:]
             final_fitted_sigs[i] = fitsigs[:]
