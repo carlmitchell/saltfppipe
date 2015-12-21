@@ -1,5 +1,6 @@
 from astropy.io import fits
 import numpy as np
+from sys import exit as crash
 
 class FPImage:
     """Class to wrap various operations for a SALT FP image file, in particular
@@ -27,7 +28,7 @@ class FPImage:
         self.badp = self.openimage[3].data
         try: self.wave = self.openimage[4].data
         except: self.wave = None
-
+        
         #Xsize and Ysize of image
         self.xsize = self.inty.shape[1]
         self.ysize = self.inty.shape[0]
@@ -36,14 +37,24 @@ class FPImage:
         self.header = self.openimage[0].header
         
         #Header keywords from the telescope
+        if "Etalon 1" in self.header.get("et-state"): self.state = "mr"
+        elif "Etalon 2" in self.header.get("et-state"): self.state = "lr"
+        else: crash("Etalon mode [kw: ET-STATE] could not be determined for"+
+                    self.filename)
         self.filter = self.header.get("filter")
         self.object = self.header.get("object")
-        self.z = self.header.get("et1z")
         self.jd = self.header.get("jd")
-        self.a = self.header.get("et1a")
-        self.b = self.header.get("et1b")
+        if self.state == "mr":
+            self.z = self.header.get("et1z")
+            self.a = self.header.get("et1a")
+            self.b = self.header.get("et1b")
+            self.f = self.header.get("et1f")
+        elif self.state == "lr":
+            self.z = self.header.get("et2z")
+            self.a = self.header.get("et2a")
+            self.b = self.header.get("et2b")
+            self.f = self.header.get("et2f")
         self.bins = self.header.get("ccdsum")
-        self.f = self.header.get("et1f")
         self.datestring = self.header.get("date-obs")
         self.ut = self.header.get("utc-obs")
         self.ra = self.header.get("ra")
@@ -60,7 +71,7 @@ class FPImage:
         self.calf = self.header.get("fpcalf")
         self.solarvel = self.header.get("fpsolar")
         self.dnorm = self.header.get("fpdnorm")
-
+        
         #Boolean header keywords
         self.phottog = self.header.get("fpphot")
         self.ghosttog = self.header.get("fpghost")
@@ -68,10 +79,10 @@ class FPImage:
         self.ringtog = self.header.get("fpdering")
         self.verifytog = self.header.get("fpverify")
         self.goodtog = self.header.get("fpgood")
-
+        
         #Rescale F by the pixel binning
         if not self.f is None: self.f /= int(self.bins.split()[0])
-
+        
         #If F is zero, it shouldn't be. Someone just effed up the headers.
         if self.f == 0: self.f = None
         
@@ -99,20 +110,30 @@ class FPImage:
         #Update telescope headers
         update_header_kw(self.header, "filter", self.filter)
         update_header_kw(self.header, "object", self.object)
-        update_header_kw(self.header, "et1z", self.z)
         update_header_kw(self.header, "jd", self.jd)
-        update_header_kw(self.header, "et1a", self.a)
-        update_header_kw(self.header, "et1b", self.b)
         update_header_kw(self.header, "ccdsum", self.bins)
-        if self.f is None:
-            update_header_kw(self.header, "et1f", self.f)
-        else:
-            update_header_kw(self.header, "et1f",
-                             self.f*int(self.bins.split()[0]))
         update_header_kw(self.header, "date-obs", self.datestring)
         update_header_kw(self.header, "utc-obs", self.ut)
         update_header_kw(self.header, "ra", self.ra)
         update_header_kw(self.header, "dec", self.dec)
+        if self.state == "mr":
+            update_header_kw(self.header, "et1z", self.z)
+            update_header_kw(self.header, "et1a", self.a)
+            update_header_kw(self.header, "et1b", self.b)
+            if self.f is None:
+                update_header_kw(self.header, "et1f", self.f)
+            else:
+                update_header_kw(self.header, "et1f",
+                                 self.f*int(self.bins.split()[0]))
+        elif self.state == "lr":
+            update_header_kw(self.header, "et2z", self.z)
+            update_header_kw(self.header, "et2a", self.a)
+            update_header_kw(self.header, "et2b", self.b)
+            if self.f is None:
+                update_header_kw(self.header, "et2f", self.f)
+            else:
+                update_header_kw(self.header, "et2f",
+                                 self.f*int(self.bins.split()[0]))
         
         #Update non-boolean pipeline headers
         update_header_kw(self.header, "fpxcen", self.xcen)
