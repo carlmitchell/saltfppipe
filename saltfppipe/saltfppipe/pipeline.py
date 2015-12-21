@@ -604,7 +604,7 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                   default, this is 'raw'
     mode -> Mode for velocity fitting. Currently the only option is H-Alpha
                 line fitting.
-                  
+    
     """
     
     #Set rest wave based on the mode called
@@ -617,8 +617,12 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                            "Recreate it? (y/n) ")
             if "n" in yn or "N" in yn: break
             elif "y" in yn or "Y" in yn:
-                rmtree("product")
-                break
+                #Confirmation
+                yn = raw_input("Are you sure? This takes a while. (y/n) ")
+                if ("y" in yn or "Y" in yn) and not ("n" in yn or "N" in yn):
+                    rmtree("product")
+                    break
+    
     if not isdir("product"):
         #Acquire the list of filenames from the raw directory
         fnlist = sorted(listdir(rawdir))
@@ -884,9 +888,12 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                     do_create = False
                     break
                 elif "y" in yn or "Y" in yn:
-                    do_create = True
-                    rmtree(list_of_objs[i].replace(" ", "")+"_cube")
-                    break
+                    #Confirmation
+                    yn = raw_input("Are you sure? This takes a while. (y/n) ")
+                    if ("y" in yn or "Y" in yn) and not ("n" in yn or "N" in yn):
+                        do_create = True
+                        rmtree(list_of_objs[i].replace(" ", "")+"_cube")
+                        break
         else: do_create = True
         if do_create:
             mkdir(list_of_objs[i].replace(" ", "")+"_cube")
@@ -950,8 +957,11 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                     domap = False
                     break
                 elif "y" in yn or "Y" in yn:
-                    domap = True
-                    break
+                    #Confirmation
+                    yn = raw_input("Are you sure? This takes a while. (y/n) ")
+                    if ("y" in yn or "Y" in yn) and not ("n" in yn or "N" in yn):
+                        domap = True
+                        break
         else: domap = True
     if domap:
         print "Fitting velocity map for object "+list_of_objs[i]+"..."
