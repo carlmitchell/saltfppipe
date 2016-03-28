@@ -141,7 +141,7 @@ def calc_norm(counts, dcounts):
     
     return countavg, countsig/np.sqrt(len(countsig))
     
-def align_norm(fnlist, tolerance=3, thresh=3.5):
+def align_norm(fnlist, tolerance=5, thresh=3.5):
     """Aligns a set of images to each other, as well as normalizing the images
     to the same average brightness.
     
@@ -260,7 +260,7 @@ def align_norm(fnlist, tolerance=3, thresh=3.5):
             index = np.argmin(dist2)
             x[j,i] = xlists[j][index]
             y[j,i] = ylists[j][index]
-
+    
     #Do aperture photometry on the matched objects
     print "Performing photometry on matched stars..."
     counts = np.zeros_like(x)
@@ -282,30 +282,46 @@ def align_norm(fnlist, tolerance=3, thresh=3.5):
     xshifts = np.average(x,axis=1)
     yshifts = np.average(y,axis=1)
     
-    #Shift the images and update headers
+    # Normalize the images and put shifts in the image headers
     for i in range(len(fnlist)):
-        print "Shifting and normalizing image "+fnlist[i]
-        
-        #Open the image in question
         image = FPImage(fnlist[i],update=True)
-        
-        #Update header values
         image.phottog="True"
-        image.xcen+=xshifts[i]
-        image.ycen+=yshifts[i]
-        image.axcen+=xshifts[i]
-        image.aycen+=yshifts[i]
         image.dnorm = dnorm[i]
-        
-        #Perform the shift
-        image = imshift(image,xshifts[i],yshifts[i])
-
-        #Perform the normalization
         image.inty /= norm[i]
-        image.vari = (image.vari/norm[i]**2 + 
-                      image.inty**2*dnorm[i]**2/norm[i]**2)
-        
-        #Close the image
+        image.vari = (image.vari/norm[i]**2)#+
+                    #image.inty**2*dnorm[i]**2 / norm[i]**2)
+        image.xshift = xshifts[i]
+        image.yshift = yshifts[i]
         image.close()
+    
+    # SHIFTS NOW BEING DONE AT THE CONVOLOUTION STEP IN MAKE_FINAL_IMAGE()
+    # THIS KEEPS BETTER TRACK OF THE UNCERTAINTIES AS IT DOES TWO NON-LINEAR
+    # STEPS SIMULTANEOUSLY RATHER THAN ON TOP OF EACH OTHER! Huzzah!
+    
+    #Shift the images and update headers
+#     for i in range(len(fnlist)):
+#         print "Shifting and normalizing image "+fnlist[i]
+#         
+#         #Open the image in question
+#         image = FPImage(fnlist[i],update=True)
+#         
+#         #Update header values
+#         image.phottog="True"
+#         image.xcen+=xshifts[i]
+#         image.ycen+=yshifts[i]
+#         image.axcen+=xshifts[i]
+#         image.aycen+=yshifts[i]
+#         image.dnorm = dnorm[i]
+#         
+#         #Perform the shift
+#         image = imshift(image,xshifts[i],yshifts[i])
+# 
+#         #Perform the normalization
+#         image.inty /= norm[i]
+#         image.vari = (image.vari/norm[i]**2 +
+#                       image.inty**2*dnorm[i]**2/norm[i]**2)
+#         
+#         #Close the image
+#         image.close()
 
     return

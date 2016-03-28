@@ -52,9 +52,17 @@ class SkyRingPlot:
             ax2.axvline(added_waves[i],color="green")
         for i in range(len(extra_waves)):
             ax2.axvline(extra_waves[i],color='red')
+        #Getting minimum and maximum y for plotting spectra
+        minyplot = np.min(spectrum_y)
+        maxyplot = np.max(spectrum_y)
+        yrange = maxyplot - minyplot
+        minyplot -= 0.05*yrange
+        maxyplot += 0.05*yrange
+        ax2.set_ylim(minyplot,maxyplot)
+        
         ax2.set_ylabel("Median Intensity")
         ax2.set_title("Before Spectrum")
-
+        
         #Axis 3 - "After" image plot
         ax3 = fig.add_subplot(223)
         self.plot3 = ax3.imshow(subtracted_image_array,
@@ -71,8 +79,8 @@ class SkyRingPlot:
                         bottom="off",top="off",
                         right="off",left="off",
                         labelbottom="off",labelleft="off")
-
-        #Axis 4 - "After" spectrum plot   
+        
+        #Axis 4 - "After" spectrum plot
         ax4 = fig.add_subplot(224)
         self.plot4 = ax4.scatter(spectrum_x, spectrum_sub_y,color="blue")
         for i in range(len(sky_waves)):
@@ -81,6 +89,14 @@ class SkyRingPlot:
             ax4.axvline(added_waves[i],color="green")
         for i in range(len(extra_waves)):
             ax4.axvline(extra_waves[i],color='red')
+        #Getting minimum and maximum y for plotting spectra
+        minyplot = np.min(spectrum_sub_y)
+        maxyplot = np.max(spectrum_sub_y)
+        yrange = maxyplot - minyplot
+        minyplot -= 0.05*yrange
+        maxyplot += 0.05*yrange
+        ax4.set_ylim(minyplot,maxyplot)
+        
         ax4.set_xlabel("Wavelength [Ang]")
         ax4.set_ylabel("Median Intensity")
         ax4.set_title("After Spectrum")
@@ -98,12 +114,13 @@ class SkyRingPlot:
                  "Press 'e' to force-add a ring at the cursor position.\n"+
                  "Press 's' to delete the nearest ring to the cursor.\n"+
                  "Press 'q' to quit and subtract saved profiles from images.\n"+
-                 "Press 'r' to save the current ring fit for this image.")
+                 "Press 'r' to save the current ring fit for this image.\n"+
+                 "Press 'x' to switch to manual mode.")
         
         plt.suptitle(title)
         
         plt.tight_layout()
-        plt.subplots_adjust(top=0.68)
+        plt.subplots_adjust(top=0.65)
                     
         self.cid1 = self.plot1.figure.canvas.mpl_connect('key_press_event',
                                                          self.keypress)
@@ -117,7 +134,143 @@ class SkyRingPlot:
         plt.show()
     
     def keypress(self, event):
-        if event.key in ["w","a","s","d","e","q","r"]:
+        if event.key in ["w","a","s","d","e","q","r","x"]:
+            self.key = event.key
+            if event.inaxes in [self.plot1.axes,self.plot2.axes,
+                                self.plot3.axes,self.plot4.axes]:
+                self.xcoo = event.xdata
+                self.ycoo = event.ydata
+                if event.inaxes == self.plot1.axes: self.axis = 1
+                if event.inaxes == self.plot2.axes: self.axis = 2
+                if event.inaxes == self.plot3.axes: self.axis = 3
+                if event.inaxes == self.plot4.axes: self.axis = 4
+            plt.close()
+            return
+
+class ManualPlot:
+    def __init__(self,
+                 imagearray, subtracted_image_array,
+                 xcen, ycen,
+                 spectrum_x, spectrum_y, spectrum_sub_y,
+                 fitted_x, fitted_y,
+                 hasbeensaved, imagenumberstring,
+                 radii_of_rings, wavelengths_of_lines,
+                 colors):
+        
+        self.axis = None
+        self.key = None
+        self.xcoo = None
+        self.ycoo = None
+        
+        fig = plt.figure()
+        
+        #Axis 1 - "Before" image plot
+        ax1 = fig.add_subplot(221)
+        self.plot1 = ax1.imshow(imagearray,
+                                cmap = "Greys",
+                                aspect = "equal",
+                                vmin = np.percentile(imagearray,5),
+                                vmax = np.percentile(imagearray,95),
+                                origin = "lower",
+                                interpolation = "nearest")
+        for i in range(len(radii_of_rings)):
+            if not np.isnan(radii_of_rings[i]):
+                ax1.plot(xcen+radii_of_rings[i]*np.cos(np.linspace(0,2*np.pi,500)),
+                         ycen+radii_of_rings[i]*np.sin(np.linspace(0,2*np.pi,500)),
+                         color=colors[i])
+        ax1.set_title("Before Image")
+        ax1.set_xlim([0,imagearray.shape[1]])
+        ax1.set_ylim([0,imagearray.shape[0]])
+        plt.tick_params(axis="both",which="both",
+                        bottom="off",top="off",
+                        right="off",left="off",
+                        labelbottom="off",labelleft="off")
+        
+        #Axis 2 - "Before" spectrum plot
+        ax2 = fig.add_subplot(222)
+        self.plot2 = ax2.scatter(spectrum_x, spectrum_y,color="blue")
+        ax2.plot(fitted_x, fitted_y, color="red")
+        for i in range(len(wavelengths_of_lines)):
+            ax2.axvline(wavelengths_of_lines[i],color=colors[i])
+        
+        #Getting minimum and maximum y for plotting spectra
+        minyplot = np.min(spectrum_y)
+        maxyplot = np.max(spectrum_y)
+        yrange = maxyplot - minyplot
+        minyplot -= 0.05*yrange
+        maxyplot += 0.05*yrange
+        ax2.set_ylim(minyplot,maxyplot)
+        
+        ax2.set_ylabel("Median Intensity")
+        ax2.set_title("Before Spectrum")
+        
+        #Axis 3 - "After" image plot
+        ax3 = fig.add_subplot(223)
+        self.plot3 = ax3.imshow(subtracted_image_array,
+                                cmap = "Greys",
+                                aspect = "equal",
+                                vmin = np.percentile(imagearray,5),
+                                vmax = np.percentile(imagearray,95),
+                                origin = "lower",
+                                interpolation = "nearest")
+        ax3.set_xlim([0,imagearray.shape[1]])
+        ax3.set_ylim([0,imagearray.shape[0]])
+        ax3.set_title("After Image")
+        plt.tick_params(axis="both",which="both",
+                        bottom="off",top="off",
+                        right="off",left="off",
+                        labelbottom="off",labelleft="off")
+        
+        #Axis 4 - "After" spectrum plot
+        ax4 = fig.add_subplot(224)
+        self.plot4 = ax4.scatter(spectrum_x, spectrum_sub_y,color="blue")
+        for i in range(len(wavelengths_of_lines)):
+            ax4.axvline(wavelengths_of_lines[i],color=colors[i])
+
+        #Getting minimum and maximum y for plotting spectra
+        minyplot = np.min(spectrum_sub_y)
+        maxyplot = np.max(spectrum_sub_y)
+        yrange = maxyplot - minyplot
+        minyplot -= 0.05*yrange
+        maxyplot += 0.05*yrange
+        ax4.set_ylim(minyplot,maxyplot)
+        
+        ax4.set_xlabel("Wavelength [Ang]")
+        ax4.set_ylabel("Median Intensity")
+        ax4.set_title("After Spectrum")
+        
+        if hasbeensaved: savedstring = "already has a saved fit."
+        else: savedstring = "does not yet have a saved fit."
+        
+        title = ("Image #"+imagenumberstring+" "+savedstring+"\n"+
+                 "Included lines are blue. Additional known lines are red.\n"+
+                 "Added lines are green. Selected line is purple.\n"+
+                 "Press 'z' to cycle selected line, 'r' to save fit.\n"
+                 "Press 'c/v' to make refinements more/less fine.\n"
+                 "Press 't/g' to increase/decrease continuum strength.\n"
+                 "Press 'w/s' to increase/decrease selected line strength.\n"+
+                 "Press 'q/a' to increase/decrease selected line width.\n"+
+                 "Press 'e/d' to add/remove known lines, or 'f' to force-add.\n"+
+                 "Press 'x' to switch to automatic mode (and move on).")
+        
+        plt.suptitle(title)
+        
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.62)
+                    
+        self.cid1 = self.plot1.figure.canvas.mpl_connect('key_press_event',
+                                                         self.keypress)
+        self.cid2 = self.plot2.figure.canvas.mpl_connect('key_press_event',
+                                                         self.keypress)
+        self.cid3 = self.plot3.figure.canvas.mpl_connect('key_press_event',
+                                                         self.keypress)
+        self.cid4 = self.plot4.figure.canvas.mpl_connect('key_press_event',
+                                                         self.keypress)
+        
+        plt.show()
+        
+    def keypress(self, event):
+        if event.key in ["z","r","c","v","w","s","q","a","e","f","d","x","t","g"]:
             self.key = event.key
             if event.inaxes in [self.plot1.axes,self.plot2.axes,
                                 self.plot3.axes,self.plot4.axes]:
@@ -152,6 +305,8 @@ def sub_sky_rings(fnlist,medfilelist):
     #This bit takes care of the 's' to save shortcut in matplotlib.
     oldsavekey = plt.rcParams["keymap.save"]
     plt.rcParams["keymap.save"] = ""
+    oldfullscreenkey = plt.rcParams['keymap.fullscreen']
+    plt.rcParams['keymap.fullscreen'] = ""
     
     #Open all of the images, median-subtract them, make wavelength arrays
     # make skywavelibs for each, make spectra for each, trim images
@@ -399,14 +554,209 @@ def sub_sky_rings(fnlist,medfilelist):
             if clicked_wave != None:
                 #Add this wavelength to the added array
                 addedwaves[i].append(clicked_wave)
-                
+        
         #Save option
         if profile_plot.key == "r":
-            #print fnlist[i], waves_to_fit, fitintys, fitsigs
             final_fitted_waves[i] = waves_to_fit[:]
             final_fitted_intys[i] = fitintys[:]
             final_fitted_sigs[i] = fitsigs[:]
             has_been_saved[i] = True
+            
+        #Manual Mode Option
+        if profile_plot.key == "x":
+            
+            #Initialize the manual mode lists
+            man_waves = list(waves_to_fit)
+            man_intys = list(fitintys)
+            man_sigs = list(fitsigs)
+            man_cont = fitcont
+            man_real = []
+            for wave in man_waves:
+                if wave in skywavelibs[i] or wave in skywavelibs_extended[i]:
+                    man_real.append(True)
+                else:
+                    man_real.append(False)
+            
+            #Initialize refinement level and selected line
+            selected_line = 0
+            refine = 1
+            inty_refine = 0.25*(np.max(spectrum_inty[i])-
+                                np.min(spectrum_inty[i]))
+            sig_refine = 0.5
+            cont_refine = inty_refine
+
+            #Loop until completion
+            while True:
+                
+                #Make the subtracted plot array
+                subarray = images[i].inty.copy()
+                for j in range(len(man_waves)):
+                    subarray -= man_intys[j]*nGauss(wavearraylist[i]-man_waves[j],
+                                                    man_sigs[j])
+                
+                #Figure out which radius each wavelength is at
+                radiilist = []
+                for j in range(len(man_waves)):
+                    radiilist.append(Flist[i] *
+                                     np.sqrt((wave0list[i]/man_waves[j])**2-1))
+                for j in range(len(skywavelibs_extended[i])):
+                    radiilist.append(Flist[i] *
+                                     np.sqrt((wave0list[i]/skywavelibs_extended[i][j])**2-1))
+                
+                #Create the subtracted spectrum
+                sub_spec_inty = spectrum_inty[i] - man_cont
+                for j in range(len(man_waves)):
+                    sub_spec_inty -= (man_intys[j] * 
+                                      nGauss(spectrum_wave[i]-man_waves[j],
+                                             man_sigs[j]))
+                
+                #Create the spectrum fit plot
+                fit_X = np.linspace(minwavelist[i],maxwavelist[i],500)
+                fit_Y = np.ones_like(fit_X)*man_cont
+                for j in range(len(man_waves)):
+                    fit_Y += man_intys[j]*nGauss(fit_X-man_waves[j], man_sigs[j])
+                
+                #What colors are we using?
+                colors=[]
+                for k in range(len(man_waves)):
+                    if selected_line==k:
+                        colors.append('purple')
+                    elif not man_real[k]:
+                        colors.append('green')
+                    elif man_real[k]:
+                        colors.append('blue')
+                for _w in skywavelibs_extended[i]:
+                    colors.append('red')
+                
+                #Plot the spectrum and fit, get user input
+                man_plot = ManualPlot(images[i].inty, subarray,
+                                      xcenlist[i], ycenlist[i],
+                                      spectrum_wave[i], spectrum_inty[i],
+                                      sub_spec_inty,
+                                      fit_X, fit_Y,
+                                      has_been_saved[i], repr(i+1)+"/"+repr(len(fnlist)),
+                                      radiilist, man_waves+skywavelibs_extended[i],
+                                      colors)
+                                
+                #Cycle selected line
+                if man_plot.key == "z":
+                    selected_line += 1
+                    if selected_line >= len(man_waves): selected_line=0
+                    refine = 1
+                
+                #Save fit
+                if man_plot.key == "r":
+                    final_fitted_waves[i] = man_waves[:]
+                    final_fitted_intys[i] = man_intys[:]
+                    final_fitted_sigs[i] = man_sigs[:]
+                    has_been_saved[i] = True
+                    break
+                
+                #Refinement levels
+                if man_plot.key == "c":
+                    refine *= 0.5
+                if man_plot.key == "v":
+                    refine *= 2
+                
+                #Increase/decrease inty
+                if len(man_waves) != 0:
+                    if man_plot.key == "w":
+                        man_intys[selected_line] += refine*inty_refine
+                    if man_plot.key == "s":
+                        man_intys[selected_line] -= refine*inty_refine
+
+                #Increase/decrease line width
+                if len(man_waves) != 0:
+                    if man_plot.key == "q":
+                        man_sigs[selected_line] += refine*sig_refine
+                    if man_plot.key == "a":
+                        man_sigs[selected_line] -= refine*sig_refine
+                
+                #Increase/decrease continuum
+                if man_plot.key == "t":
+                    man_cont += refine*cont_refine
+                if man_plot.key == "g":
+                    man_cont -= refine*cont_refine
+
+                #Add the known line nearest the keypress
+                if man_plot.key == "e":
+                    clicked_wave = None
+                    if man_plot.axis in [1,3]:
+                        #The keypress was made in an image plot
+                        clicked_radius = np.sqrt((man_plot.xcoo - xcenlist[i])**2 +
+                                                 (man_plot.ycoo - ycenlist[i])**2)
+                        #Convert radius to wavelength
+                        clicked_wave = ( wave0list[i] / 
+                                         (1+clicked_radius**2/Flist[i]**2)**0.5 )
+                    elif man_plot.axis in [2,4]:
+                        #The keypress was in a spectrum plot
+                        clicked_wave = man_plot.xcoo
+                    if not clicked_wave is None:
+                        #Find the nearest wavelength in the extended list
+                        if len(np.array(skywavelibs_extended[i])-clicked_wave)>0:
+                            near = np.argmin(np.abs(np.array(skywavelibs_extended[i])-
+                                                    clicked_wave))
+                            wave_to_add = skywavelibs_extended[i][near]
+                            #Add that wave to manwaves, remove from extended list
+                            man_waves.append(wave_to_add)
+                            man_intys.append(0)
+                            man_sigs.append(1)
+                            man_real.append(True)
+                            skywavelibs_extended[i].remove(wave_to_add)
+                            selected_line = len(man_waves)-1
+                    
+                #Remove line nearest the keypress
+                if man_plot.key == "d":
+                    nearest_wave = None
+                    if man_plot.axis in [1,3] and len(man_waves)!=0:
+                        #The keypress was made in an image plot
+                        clicked_radius = np.sqrt((man_plot.xcoo - xcenlist[i])**2 + 
+                                                 (man_plot.ycoo - ycenlist[i])**2)
+                        near_index = np.argmin(np.abs((np.array(radiilist) - 
+                                                       clicked_radius)))
+                        nearest_wave = man_waves[near_index]
+                    elif man_plot.axis in [2,4] and len(man_waves)!=0:
+                        #The keypress was in a spectrum plot
+                        clicked_wave = man_plot.xcoo
+                        near_index = np.argmin(np.abs(np.array(man_waves) -
+                                                      clicked_wave))
+                        nearest_wave = man_waves[near_index]
+                    if not nearest_wave is None:
+                        #Remove the nearest wavelength, re-add to extended list
+                        # if it was real
+                        wave_index = np.where(np.array(man_waves)==nearest_wave)[0][0]
+                        man_waves.pop(wave_index)
+                        man_intys.pop(wave_index)
+                        man_sigs.pop(wave_index)
+                        if man_real[wave_index]:
+                            skywavelibs_extended[i].append(nearest_wave)
+                        man_real.pop(wave_index)
+                        if wave_index == selected_line: selected_line=0
+                    
+                #Force-add
+                if man_plot.key == "f":
+                    clicked_wave = None
+                    if profile_plot.axis in [1,3]:
+                        #The click was made in an image plot
+                        clicked_radius = np.sqrt((man_plot.xcoo - xcenlist[i])**2 +
+                                                 (man_plot.ycoo - ycenlist[i])**2)
+                        #Convert radius to wavelength
+                        clicked_wave = ( wave0list[i] /
+                                         (1+clicked_radius**2/Flist[i]**2)**0.5 )
+                    elif profile_plot.axis in [2,4]:
+                        #The click was in a spectrum plot
+                        clicked_wave = man_plot.xcoo
+                    if not clicked_wave is None:
+                        #Add this wavelength to the added array
+                        man_waves.append(clicked_wave)
+                        man_intys.append(0)
+                        man_sigs.append(1)
+                        man_real.append(False)
+                        selected_line = len(man_waves)-1
+                    
+                #Switch back to automatic
+                if man_plot.key == "x":
+                    break
         
     #Close all of the images
     for image in images: image.close()
@@ -429,5 +779,6 @@ def sub_sky_rings(fnlist,medfilelist):
     
     #Restore the old keyword shortcut
     plt.rcParams["keymap.save"] = oldsavekey
+    plt.rcParams['keymap.fullscreen'] = oldfullscreenkey
     
     return

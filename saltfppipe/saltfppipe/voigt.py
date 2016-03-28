@@ -9,12 +9,12 @@ def nVoigt(x,wave0,sigma,gamma):
     
     #Calculate the new full-width half-max (magic numbers come from paper in documentation)
     f = fwhm(sigma, gamma)
-    
+
     #Calculate the mixing parameter (magic numbers come from paper in documentation)
     m = mix(gamma, f)
     
     #Calculate normalized Gaussian and Lorentzians with FWHM 'f' at the point of interest
-    g = (4./f)*np.sqrt(np.log(2.)/np.pi)*np.exp(-4.*np.power((x-wave0)/f,2))
+    g = (2./f)*np.sqrt(np.log(2.)/np.pi)*np.exp(-4.*np.power((x-wave0)/f,2))
     l = (f/(2.*np.pi))/(np.power(x-wave0,2)+np.power(f/2.,2))
 
     #Create the normalized Voigt profile at the point of interest
@@ -34,7 +34,7 @@ def fwhm(sigma_g, gamma_l):
     f -> The new fwhm
     
     """
-
+    s = 2.*np.sqrt(2.*np.log(2.))
     return np.power( np.power(2.*np.sqrt(2.*np.log(2.))*sigma_g,5)*np.power(gamma_l,0) + 
                      np.power(2.*np.sqrt(2.*np.log(2.))*sigma_g,4)*np.power(gamma_l,1)*2.69296 + 
                      np.power(2.*np.sqrt(2.*np.log(2.))*sigma_g,3)*np.power(gamma_l,2)*2.42843 + 

@@ -39,8 +39,9 @@ class FPImage:
         #Header keywords from the telescope
         if "Etalon 1" in self.header.get("et-state"): self.state = "mr"
         elif "Etalon 2" in self.header.get("et-state"): self.state = "lr"
-        else: crash("Etalon mode [kw: ET-STATE] could not be determined for"+
-                    self.filename)
+        #else: crash("Etalon mode [kw: ET-STATE] could not be determined for"+
+        #            self.filename)
+        else: self.state = 'mr'
         self.filter = self.header.get("filter")
         self.object = self.header.get("object")
         self.jd = self.header.get("jd")
@@ -71,6 +72,9 @@ class FPImage:
         self.calf = self.header.get("fpcalf")
         self.solarvel = self.header.get("fpsolar")
         self.dnorm = self.header.get("fpdnorm")
+        self.calrms = self.header.get("fpcalrms")
+        self.xshift = self.header.get("fpxshift")
+        self.yshift = self.header.get("fpyshift")
         
         #Boolean header keywords
         self.phottog = self.header.get("fpphot")
@@ -146,6 +150,9 @@ class FPImage:
         update_header_kw(self.header, "fpcalf", self.calf)
         update_header_kw(self.header, "fpsolar", self.solarvel)
         update_header_kw(self.header, "fpdnorm", self.dnorm)
+        update_header_kw(self.header, "fpcalrms", self.calrms)
+        update_header_kw(self.header, "fpxshift", self.xshift)
+        update_header_kw(self.header, "fpyshift", self.yshift)
         
         #Update boolean pipeline headers
         update_header_kw(self.header, "fpphot", self.phottog)

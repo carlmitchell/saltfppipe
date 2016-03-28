@@ -1,8 +1,11 @@
 import numpy as np
 from astropy.io import fits
 from os.path import join
-import voigtfit
 from saltfppipe.fp_image_class import FPImage
+
+import sys
+sys.path.append('/home/cmitchell/code/fpsoft/voigtfit2')
+import voigtfit
 
 def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     """
@@ -37,6 +40,9 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     dwavearray = np.zeros_like(images[0].inty)
     n2intyarray = np.zeros_like(images[0].inty)
     dn2intyarray = np.zeros_like(images[0].inty)
+    chi2array = np.zeros_like(images[0].inty)
+    sigmaarray = np.zeros_like(images[0].inty)
+    dsigmaarray = np.zeros_like(images[0].inty)
     
     #Create x and y arrays for the "progress bar"
     numb_updates=20 #Number of progress updates
@@ -53,6 +59,7 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     progX = np.array(progX)
     progY = np.array(progY)
     progPerc = np.array(progPerc)
+    
     #Loop over pixels
     for y in range(images[0].ysize):
         for x in range(images[0].xsize):
@@ -66,15 +73,18 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
             waves = wavecube[y,x,:][badpixs!=1]
             intys = intycube[y,x,:][badpixs!=1]
             uncerts = uncertcube[y,x,:][badpixs!=1]
-            
-            #Attempt the two-lined fit (halpha and NII)
-            #CURRENTLY NOT BEING DONE
 
             #Fit with voigtfit
-            if np.sum(badpixs)<0.5*len(waves):
-                fit,err,_chi2 = voigtfit.voigtfit2(waves,intys,uncerts,
-                                                   voigtfit.voigtguess2(waves,intys),
-                                                   [True,True,True,True,False,True])
+            if np.sum(badpixs)<0.5*len(waves) and not np.any(np.isnan(uncerts)):
+                guess = voigtfit.voigtguess2(waves,intys)
+                #guess[4] = 1.5
+                fit,err,chi2 = voigtfit.voigtfit2(waves,intys,uncerts,
+                                                  guess,
+                                                  [True,True,True,True,False,True])
+                #fit,err,chi2 = voigtfit.voigtfit(waves,intys,uncerts,
+                #                                 voigtfit.voigtguess(waves,intys),
+                #                                 [True,True,True,True,True])
+
                 contarray[y,x] = fit[0]
                 intyarray[y,x] = fit[1]
                 wavearray[y,x] = fit[2]
@@ -83,7 +93,10 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
                 dintyarray[y,x] = err[1]
                 dwavearray[y,x] = err[2]
                 dn2intyarray[y,x] = err[5]
-                
+                chi2array[y,x] = chi2
+                sigmaarray[y,x] = fit[3]
+                dsigmaarray[y,x] = err[3]
+
     #Convert wavelengths to velocities
     velarray = np.zeros_like(wavearray)
     dvelarray = np.zeros_like(wavearray)
@@ -103,7 +116,10 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     fits.writeto(join(outdir,"n2intensity.fits"), n2intyarray, clobber=clobber)
     fits.writeto(join(outdir,"dn2intensity.fits"), dn2intyarray, clobber=clobber)
     fits.writeto(join(outdir,"n2ratio.fits"), n2intyarray/intyarray, clobber=clobber)
-
+    fits.writeto(join(outdir,"chi2.fits"), chi2array, clobber=clobber)
+    fits.writeto(join(outdir,"sigma.fits"),sigmaarray, clobber=clobber)
+    fits.writeto(join(outdir,"dsigma.fits"),dsigmaarray, clobber=clobber)
+    
     #Close input images
     for image in images: image.close()
     

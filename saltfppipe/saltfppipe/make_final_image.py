@@ -50,9 +50,10 @@ def convolve_variance(vararray, badpixarray, kern):
     
     #Divide the running variance by the running weight sum to normalize by
     #how much of the kernel we ended up using
-    running_var_sum[mask] = running_var_sum[mask]/running_wgt_sum[mask]
+    running_var_sum[mask] = running_var_sum[mask]/running_wgt_sum[mask]*np.sum(kern**2)
     running_var_sum[np.logical_not(mask)] = vararray[np.logical_not(mask)]
     
+    #return vararray
     return running_var_sum
     
 def convolve_wave(wavearray, intyarray, badpixarray, kern):
@@ -72,7 +73,7 @@ def convolve_wave(wavearray, intyarray, badpixarray, kern):
     Outputs:
     final_wave -> The convolved wavelength array
     
-    """    
+    """
     
     #A mask for pixels which are good
     mask = np.logical_and(badpixarray==0,intyarray!=0)
@@ -108,6 +109,7 @@ def convolve_wave(wavearray, intyarray, badpixarray, kern):
     running_wav_sum[mask] = running_wav_sum[mask]/running_wgt_sum[mask]
     running_wav_sum[np.logical_not(mask)]=wavearray[np.logical_not(mask)]
     
+    #return wavearray
     return running_wav_sum
 
 def convolve_inty(intyarray, badpixarray, kern):
@@ -160,6 +162,7 @@ def convolve_inty(intyarray, badpixarray, kern):
     running_int_sum[mask] = running_int_sum[mask]/running_wgt_sum[mask]
     running_int_sum[np.logical_not(mask)]=0
     
+    #return intyarray
     return running_int_sum
 
 def make_final_image(input_image, output_image,
@@ -216,16 +219,23 @@ def make_final_image(input_image, output_image,
         crash("Error! Desired FWHM too low for image "+
               input_image+".")
     
-    #Calculate the necessary FWHM for convolution and make the gaussian kernel
+    #Calculate the necessary FWHM for convolution
     fwhm_conv = np.sqrt(desired_fwhm**2-fwhm**2)
-    sig = fwhm_conv/2.3548+0.0001 #Magic number converts sigma to fwhm
-    ksize = np.ceil(4*sig) #Generate the kernel to 4-sigma
+    #Magic number converts sigma to fwhm
+    sig = fwhm_conv/2.3548
+    #Extremely conservative "safe" kernel size
+    #ksize = np.ceil(4*sig+4*np.abs(image.xshift)+4*np.abs(image.yshift))
+    ksize = np.ceil(4*sig)
+    #Generate the gaussian kernel, shifted to shift the image
     kxgrid, kygrid = np.meshgrid(np.linspace(-ksize,ksize,2*ksize+1),
                                  np.linspace(-ksize,ksize,2*ksize+1))
-    kern = np.exp(-(kxgrid**2+kygrid**2)/(2*sig**2)) #Gaussian kernel
-    kern = kern/np.sum(kern) #Normalize the kernel
+    xshift, yshift = image.xshift, image.yshift
+    rad2grid = (kxgrid + xshift)**2 + (kygrid + yshift)**2 #CHECK SIGNS HERE!
+    kern = np.exp(-rad2grid/(2*sig**2))
+    #Normalize the kernel
+    kern = kern/np.sum(kern)
     
-    #Convolve the variance array
+    #Extract relevant arrays
     vargrid = image.vari
     badpixgrid = image.badp
     
@@ -246,6 +256,7 @@ def make_final_image(input_image, output_image,
     #Convolve the intensity image
     new_intygrid = convolve_inty(intygrid, badpixgrid, kern)
     new_intygrid[new_intygrid==0] = intygrid[new_intygrid==0]
+    new_intygrid[np.isnan(new_intygrid)] = intygrid[np.isnan(new_intygrid)]
     image.fwhm = desired_fwhm #Update header FWHM keyword
     
     #Subtract the sky background from the image
@@ -266,6 +277,12 @@ def make_final_image(input_image, output_image,
     image.inty = new_intygrid
     image.vari = new_vargrid
     image.wave = new_wavegrid
+    
+    #Adjust header keywords (even though they're kinda irrelevant now)
+    image.xcen+=image.xshift
+    image.ycen+=image.yshift
+    image.axcen+=image.xshift
+    image.aycen+=image.yshift
     
     #Write the output file
     image.writeto(output_image, clobber=clobber)

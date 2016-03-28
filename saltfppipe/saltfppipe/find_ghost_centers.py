@@ -138,7 +138,7 @@ def find_ghost_centers(fnlist, tolerance=3, thresh=4.5, guess=None):
     tolerance -> Optional. How close two pixels can be and be "close enough"
                  Default is 3 pixels.
     thresh -> Optional. Level above sky background variation to look for objs.
-              Default is 3.5 (times SkySigma). Decrease if center positions
+              Default is 4.5 (times SkySigma). Decrease if center positions
               aren't being found accurately. Increase for crowded fields to
               decrease computation time.
     guess -> Optional. If you already have an idea of where the center should

@@ -272,7 +272,10 @@ def fit_wave_soln(fnlist):
                                      rgrid<rbins[j])
             goodbinmask = np.logical_and(binmask,
                                          objlist[i].badp==0)
-            intbins[j] = np.median(objlist[i].inty[goodbinmask])
+            if np.sum(goodbinmask) != 0:
+                intbins[j] = np.median(objlist[i].inty[goodbinmask])
+            else:
+                intbins[j] = 0
         #Shift/scale the radius and intensity data for the purposes of plotting
         plotxcen = xcen-axcen+arad
         plotycen = ycen-aycen+arad        
@@ -529,7 +532,8 @@ def fit_wave_soln(fnlist):
                                        ", B = "+str(fit[i][1])+
                                        ", F = "+str(fit[i][2]) )
                     print solnstring
-                print ( "Residual rms="+str(np.sqrt(np.average(resid**2)))+
+                rms = np.sqrt(np.average(resid**2))
+                print ( "Residual rms="+str(rms)+
                         " for "+repr(len(time_dividers)+1)+
                         " independent "+repr(3+dotime)+
                         "-parameter fits to "+repr(len(rplot))+" rings." )
@@ -607,6 +611,7 @@ def fit_wave_soln(fnlist):
             image_F = image_fit[2]
         image.wave0 = image_wave0
         image.calf = image_F
+        image.calrms = rms
         image.close()
     
     #Restore the old keyword shortcut

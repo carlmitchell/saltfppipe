@@ -650,7 +650,7 @@ def pipeline(rawdir = "raw", mode = "halpha"):
         remove("temp.fits")
         remove("temp.log")
         #Run the raw images through the first few data reduction pipeline steps
-        imred(fnlist, "product", bpmfile = "badpixmask.fits")
+        imred(fnlist, "product", bpmfile = "badpixmask.fits")#,gaindb='/iraf/iraf/extern/pysalt/data/rss/RSSamps.dat')
         #Delete the temporary bad pixel mask
         remove("badpixmask.fits")
         #Move these raw images into the product directory
@@ -865,18 +865,31 @@ def pipeline(rawdir = "raw", mode = "halpha"):
     
     #Sky ring removal
     for i in range(len(objlists)):
+        for j in range(len(objlists[i])):
+            #Check to see if sky rings have already been removed
+            image = FPImage(objlists[i][j])
+            deringed = image.ringtog
+            image.close()
+            if deringed is None:
+                print "Subtracting sky rings for image "+objlists[i][j]
+                sub_sky_rings([objlists[i][j]],
+                              [join(list_of_objs[i].replace(" ",""),
+                                    "median.fits")])
+            else: print ("Sky ring subtraction already done for image "+
+                         objlists[i][j])
+        
         #Check to see if sky rings have already been removed
-        firstimage = FPImage(objlists[i][0])
-        deringed = firstimage.ringtog
-        firstimage.close()
-        if deringed is None:
-            print "Subtracting sky rings for object "+list_of_objs[i]+"..."
-            sub_sky_rings(objlists[i],
-                          ([join(list_of_objs[i].replace(" ", "")
-                                 ,"median.fits")] * 
-                           len(objlists[i])))
-        else: print ("Sky ring subtraction already done for object "
-                     +list_of_objs[i])
+        #firstimage = FPImage(objlists[i][0])
+        #deringed = firstimage.ringtog
+        #firstimage.close()
+        #if deringed is None:
+        #    print "Subtracting sky rings for object "+list_of_objs[i]+"..."
+        #    sub_sky_rings(objlists[i],
+        #                  ([join(list_of_objs[i].replace(" ", "")
+        #                         ,"median.fits")] * 
+        #                   len(objlists[i])))
+        #else: print ("Sky ring subtraction already done for object "
+        #             +list_of_objs[i])
     
     #Creation of data cube and convolution to uniform PSF
     for i in range(len(objlists)):
@@ -918,7 +931,7 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                             print ("Final fwhm must exceed "+
                                    str(largestfwhm)+" pixels.")
                         else: break
-            desired_fwhm = user_fwhm
+            desired_fwhm = user_fwhm*1.01
             for j in range(len(objlists[i])):
                 make_final_image(objlists[i][j],
                                  join(list_of_objs[i].replace(" ", "")+"_cube"
