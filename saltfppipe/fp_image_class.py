@@ -73,6 +73,10 @@ class FPImage:
         self.solarvel = self.header.get("fpsolar")
         self.dnorm = self.header.get("fpdnorm")
         self.calrms = self.header.get("fpcalrms")
+        self.calnring = self.header.get("ncalring")
+        self.calnpars = self.header.get("ncalpars")
+        self.calnfits = self.header.get("ncalfits")
+
         self.xshift = self.header.get("fpxshift")
         self.yshift = self.header.get("fpyshift")
         
@@ -151,6 +155,9 @@ class FPImage:
         update_header_kw(self.header, "fpsolar", self.solarvel)
         update_header_kw(self.header, "fpdnorm", self.dnorm)
         update_header_kw(self.header, "fpcalrms", self.calrms)
+        update_header_kw(self.header, "ncalpars", self.calnpars)
+        update_header_kw(self.header, "ncalring", self.calnring)
+        update_header_kw(self.header, "ncalfits", self.calnfits)
         update_header_kw(self.header, "fpxshift", self.xshift)
         update_header_kw(self.header, "fpyshift", self.yshift)
         

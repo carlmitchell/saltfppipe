@@ -1,11 +1,15 @@
-import sys
-from os.path import isdir, isfile, join, split, splitext
-from os import mkdir, listdir, remove
-from shutil import rmtree, copyfile, move
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy.io.fits import open as openfits
+import sys
+
+from os import mkdir, listdir, remove
+from os.path import isdir, isfile, join, split, splitext
+from shutil import rmtree, copyfile, move
+from astropy.io import fits
 from scipy.optimize import minimize
+from pyraf import iraf
+from zsalt.imred import imred
+
 from saltfppipe.aperture_mask import aperture_mask
 from saltfppipe.combine_flat import combine_flat
 from saltfppipe.flatten import flatten
@@ -13,14 +17,11 @@ from saltfppipe.find_ghost_centers import find_ghost_centers
 from saltfppipe.deghost import deghost
 from saltfppipe.align_norm import align_norm
 from saltfppipe.fit_wave_soln import fit_wave_soln
-from astropy.io.fits import PrimaryHDU
 from saltfppipe.gauss_fit import GaussFit
 from saltfppipe.sub_sky_rings import sub_sky_rings
 from saltfppipe.make_final_image import make_final_image
 from saltfppipe.solar_velocity_shift import solar_velocity_shift
 from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
-from pyraf import iraf
-from zsalt.imred import imred
 from saltfppipe.make_clean_map import make_clean_map
 from saltfppipe.mask_regions import mask_regions
 from saltfppipe.fp_image_class import FPImage
@@ -586,7 +587,7 @@ def make_median(fnlist,outfile):
     
     meddata = np.median(datalist,axis=0)
     
-    medhdu = PrimaryHDU(meddata)
+    medhdu = fits.PrimaryHDU(meddata)
     medhdu.writeto(outfile,clobber=True)
     
     for i in range(len(fnlist)):
@@ -640,7 +641,7 @@ def pipeline(rawdir = "raw", mode = "halpha"):
                       rej_hi=5.0, niter=10, plotover=False, turbo=False, 
                       clobber=True, logfile="temp.log", verbose=True)
         #Create the bad pixel mask
-        image = openfits("temp.fits")
+        image = fits.open("temp.fits")
         for i in range(1,len(image)):
             mask = image[i].data!=image[i].data
             image[i].data = 1*mask

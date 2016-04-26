@@ -769,6 +769,9 @@ def sub_sky_rings(fnlist,medfilelist):
         aycen = image.aycen
         mask = image.inty == 0 #For re-correcting chip gaps
         for j in range(len(final_fitted_waves[i])):
+            image.header['subwave'+repr(j)] = final_fitted_waves[i][j]
+            image.header['subinty'+repr(j)] = final_fitted_intys[i][j]
+            image.header['subsig'+repr(j)] = final_fitted_sigs[i][j]
             ringimg = ( final_fitted_intys[i][j] *
                         nGauss(wavearraylist[i]-final_fitted_waves[i][j],
                                final_fitted_sigs[i][j]) )

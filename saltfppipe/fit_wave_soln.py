@@ -612,6 +612,9 @@ def fit_wave_soln(fnlist):
         image.wave0 = image_wave0
         image.calf = image_F
         image.calrms = rms
+        image.calnring = repr(len(rplot))
+        image.calnfits = repr(len(time_dividers)+1)
+        image.calnpars = repr(3+dotime)
         image.close()
     
     #Restore the old keyword shortcut
