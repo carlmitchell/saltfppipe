@@ -35,7 +35,7 @@ class Verify_Center_Plot:
         plt.show()
 
     def keypress(self, event):
-        if event.key in ["wasdq"]:
+        if event.key in "wasdq":
             self.key = event.key
             plt.close()
 

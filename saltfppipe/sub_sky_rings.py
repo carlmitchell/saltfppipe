@@ -139,7 +139,7 @@ class SkyRingPlot:
         plt.show()
 
     def keypress(self, event):
-        if event.key in ["wasdeqrx"]:
+        if event.key in "wasdeqrx":
             self.key = event.key
             if event.inaxes in [self.plot1.axes, self.plot2.axes,
                                 self.plot3.axes, self.plot4.axes]:
@@ -493,13 +493,14 @@ def sub_sky_rings(fnlist, medfilelist):
         quitloop = False
         if (i == -1 or i == len(fnlist) or profile_plot.key == "q"):
             if (np.sum(np.logical_not(has_been_saved)) == 0):
-                while True:
-                    yn = raw_input("Finished fitting ring profiles? (y/n) ")
-                    if "n" in yn or "N" in yn:
-                        break
-                    if "y" in yn or "Y" in yn:
-                        quitloop = True
-                        break
+#                 while True:
+#                     yn = raw_input("Finished fitting ring profiles? (y/n) ")
+#                     if "n" in yn or "N" in yn:
+#                         break
+#                     if "y" in yn or "Y" in yn:
+#                         quitloop = True
+#                         break
+                quitloop = True
             else:
                 print ("Error: Ring fits have not yet been " +
                        "saved for the following images:")
