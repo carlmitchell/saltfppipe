@@ -3,9 +3,12 @@ from astropy.io import fits
 from os.path import join
 from saltfppipe.fp_image_class import FPImage
 
-import sys
-sys.path.append('/home/cmitchell/code/fpsoft/voigtfit2')
-import voigtfit
+try:
+    import sys
+    sys.path.append('/home/cmitchell/code/voigtfit')
+    import voigtfit
+except:
+    None
 
 
 def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):

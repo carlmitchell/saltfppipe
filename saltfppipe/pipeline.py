@@ -26,6 +26,13 @@ from saltfppipe.make_clean_map import make_clean_map
 from saltfppipe.mask_regions import mask_regions
 from saltfppipe.fp_image_class import FPImage
 
+do_velmap = True
+try:
+    sys.path.append('/home/cmitchell/code/voigtfit')
+    import voigtfit
+except:
+    do_velmap = False
+
 
 class Verify_Images_Plot:
     def __init__(self, data, obj_type, flagged, num, total):
@@ -735,32 +742,6 @@ def pipeline(rawdir="raw", mode="halpha"):
                 mask_regions(objlist[i],
                              splitext(split(objlist[i])[1])[0]+".reg")
 
-    # Image Flattening
-    firstimage = FPImage(objlists[0][0])
-    flattog = firstimage.flattog
-    firstimage.close()
-    if flattog is None:
-        print "Flattening images..."
-        if len(flatlist) == 0:
-            while True:
-                print "Uh oh! No flatfield exposure found!"
-                flatpath = raw_input("Enter path to external flat image: " +
-                                     "(leave blank to skip flattening) ")
-                if flatpath == "" or isfile(flatpath):
-                    break
-        else:
-            combine_flat(flatlist, "flat.fits")
-            flatpath = "flat.fits"
-        if flatpath != "":
-            notflatlist = []
-            for objlist in objlists:
-                notflatlist += objlist
-            flatten(notflatlist, flatpath)
-        else:
-            print "Skipping image flattening. (Not recommended!)"
-    else:
-        print "Images have already been flattened."
-
     # Measure stellar FWHMs
     firstimage = FPImage(objlists[0][0])
     fwhm = firstimage.fwhm
@@ -820,6 +801,32 @@ def pipeline(rawdir="raw", mode="halpha"):
         else:
             print ("Images for object "+list_of_objs[i] +
                    " have already been deghosted.")
+
+    # Image Flattening
+    firstimage = FPImage(objlists[0][0])
+    flattog = firstimage.flattog
+    firstimage.close()
+    if flattog is None:
+        print "Flattening images..."
+        if len(flatlist) == 0:
+            while True:
+                print "Uh oh! No flatfield exposure found!"
+                flatpath = raw_input("Enter path to external flat image: " +
+                                     "(leave blank to skip flattening) ")
+                if flatpath == "" or isfile(flatpath):
+                    break
+        else:
+            combine_flat(flatlist, "flat.fits")
+            flatpath = "flat.fits"
+        if flatpath != "":
+            notflatlist = []
+            for objlist in objlists:
+                notflatlist += objlist
+            flatten(notflatlist, flatpath)
+        else:
+            print "Skipping image flattening. (Not recommended!)"
+    else:
+        print "Images have already been flattened."
 
     # Make separate directories for each object.
     # This is the first bit since 'singext' to create a new directory, because
@@ -996,6 +1003,9 @@ def pipeline(rawdir="raw", mode="halpha"):
         else:
             print ("Solar velocity shift for object " +
                    list_of_objs[i]+" already done.")
+
+    if not do_velmap:
+        sys.exit("Velocity map not made - Voigt-fitting software not found.")
 
     # Velocity map fitting
     for i in range(len(list_of_objs)):
