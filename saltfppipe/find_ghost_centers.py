@@ -120,7 +120,7 @@ def verify_center(fnlist, objxs, objys, ghoxs, ghoys, xcens, ycens):
         return True
 
 
-def find_ghost_centers(fnlist, tolerance=3, thresh=4.5, guess=None):
+def find_ghost_centers(fnlist, tolerance=3, thresh=4, guess=None):
     """This routine finds the most likely optical center for a series of images
     by attempting to match ghost reflections of stars with their stellar
     counterparts. It can be rather slow if the fields are very dense with
