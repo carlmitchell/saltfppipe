@@ -352,6 +352,7 @@ def sub_sky_rings(fnlist, medfilelist):
         aycen = images[i].aycen
         # Median subtract it
         images[i].inty -= medimage[0].data
+        images[i].inty -= np.median(images[i].inty[images[i].badp != 1])
         # Make wavelength array
         r2grid = images[i].rarray(xcen, ycen)**2
         wavearraylist.append(wave0list[i]/np.sqrt(1+r2grid/Flist[i]**2))
