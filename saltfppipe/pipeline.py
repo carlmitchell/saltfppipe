@@ -614,7 +614,8 @@ def make_median(fnlist, outfile):
     datalist = []
     for i in range(len(fnlist)):
         imagelist.append(FPImage(fnlist[i]))
-        datalist.append(imagelist[i].inty)
+        datalist.append(imagelist[i].inty -
+                        np.median(imagelist[i].inty[imagelist[i].badp != 1]))
     datalist = np.array(datalist)
 
     meddata = np.median(datalist, axis=0)
@@ -797,7 +798,7 @@ def pipeline(rawdir="raw", mode="halpha"):
         if deghosted is None:
             print "Deghosting images for object "+list_of_objs[i]+"..."
             for j in range(len(objlists[i])):
-                deghost(objlists[i][j], g=0.04)
+                deghost(objlists[i][j])
         else:
             print ("Images for object "+list_of_objs[i] +
                    " have already been deghosted.")
