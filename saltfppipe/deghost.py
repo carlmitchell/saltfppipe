@@ -2,8 +2,14 @@ import numpy as np
 from sys import exit
 from saltfppipe.fp_image_class import FPImage
 
+# Here be dragons and hard-coded numbers
+reflection_center_x_shift = (766.56 - 787.43)*4
+reflection_center_y_shift = (469.37 - 498.87)*4
+reflection_intercept = 0.074
+reflection_slope = -0.0001174/4
 
-def deghost(fn, g=0.04):
+
+def deghost(fn):
     """Routine to deghost an image by rotating it about a central point and
     subtracting a constant multiple of this rotated image from the original.
     My experience has shown that about 0.04 is the right value, but your
@@ -19,7 +25,6 @@ def deghost(fn, g=0.04):
 
     Inputs:
     fn -> String, the path to the fits image to be deghosted.
-    g -> The multiple to subtract from the original image, default = 4%
 
     """
 
@@ -29,6 +34,11 @@ def deghost(fn, g=0.04):
         exit("Error! Image "+fn+" doesn't have center coordinates in header!")
     xcen = image.xcen+1
     ycen = image.ycen+1
+    bins = int(image.bins.split()[0])
+    reflection_xcen = image.xcen + reflection_center_x_shift/bins
+    reflection_ycen = image.ycen + reflection_center_y_shift/bins
+    r_array = image.rarray(reflection_xcen, reflection_ycen)
+    g_array = reflection_intercept + reflection_slope*bins*r_array
 
     # Deghost the intensity image
     print "Deghosting image "+fn
@@ -42,6 +52,7 @@ def deghost(fn, g=0.04):
     # Make an array of the flipped data
     flipinty = image.inty[::-1, ::-1].copy()*1.0
     flipvari = image.vari[::-1, ::-1].copy()*1.0
+    flip_g = g_array[::-1, ::-1].copy()*1.0
 
     # Calculate the difference between the image's geometric center (midpoint)
     # and the axis of rotation
@@ -95,6 +106,8 @@ def deghost(fn, g=0.04):
             flipminx = max(-np.ceil(xshift), 0)
             flipmaxx = min(xsize, xsize-np.ceil(xshift))
             frac = abs((np.floor(yshift)-yshift)*(np.floor(xshift)-xshift))
+        g = flip_g[flipminy:flipmaxy,
+                   flipminx:flipmaxx]
 
         # Rotate and subtract the intensity array
         image.inty[miny:maxy,
