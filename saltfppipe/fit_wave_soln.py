@@ -178,7 +178,7 @@ class TimePlot:
             return
 
 
-def fit_wave_soln(fnlist):
+def fit_wave_soln(fnlist, doprint=False):
     """Fits a wavelength solution to rings in a set of images. Appends this
     wavelength solution to the image headers as the keywords:
     'fpwave0' and 'fpcalf'
@@ -231,6 +231,7 @@ def fit_wave_soln(fnlist):
                 exit("Error! No 'median.fits' file found.")
             medimage = fits.open(join(split(fnlist[i])[0], "median.fits"))
             images[i].inty -= medimage[0].data
+            images[i].inty -= np.median(images[i].inty[images[i].badp != 1])
             medimage.close()
             objlist.append(images[i])
 
@@ -338,6 +339,8 @@ def fit_wave_soln(fnlist):
             to.append(objlist[i].jd)
             ro.append(radlists[i][j])
             lib_o.append(nightlibs[i])
+            if doprint:
+                print objlist[i].z, objlist[i].jd, radlists[i][j]
 
     # Fit rings in the ARC images if there are any
     xcen = objlist[0].xcen
@@ -426,6 +429,8 @@ def fit_wave_soln(fnlist):
             ta.append(arclist[i].jd)
             ra.append(radlists[i][j])
             lib_a.append(arclibs[i])
+            if doprint:
+                print arclist[i].z, arclist[i].jd, radlists[i][j]
 
     # Now we try to get a good guess at the wavelengths
 
