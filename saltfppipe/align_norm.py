@@ -1,7 +1,8 @@
 import numpy as np
 from sys import exit as crash
 import matplotlib.pyplot as plt
-from photutils import daofind, CircularAperture, aperture_photometry
+from photutils import (daofind, CircularAperture,
+                       aperture_photometry, CircularAnnulus)
 from saltfppipe.fp_image_class import FPImage
 
 
@@ -222,10 +223,15 @@ def align_norm(fnlist, tolerance=5, thresh=3.5):
     for i in range(len(fnlist)):
         image = FPImage(fnlist[i])
         apertures = CircularAperture((x[i], y[i]), r=2*fwhm[i])
-        phot_table = aperture_photometry(image.inty-skyavg[i],
+        annuli = CircularAnnulus((x[i], y[i]), r_in=3*fwhm[i], r_out=4*fwhm[i])
+        phot_table = aperture_photometry(image.inty,
                                          apertures, error=np.sqrt(image.vari))
-        counts[i] = phot_table["aperture_sum"]
-        dcounts[i] = phot_table["aperture_sum_err"]
+        sky_phot_table = aperture_photometry(image.inty, annuli,
+                                             error=np.sqrt(image.vari))
+        counts[i] = phot_table["aperture_sum"] / apertures.area()
+        counts[i] -= sky_phot_table["aperture_sum"] / annuli.area()
+        counts[i] *= apertures.area()
+        dcounts[i] = phot_table["aperture_sum_err"] / apertures.area()
         image.close()
 
     # Calculate the shifts and normalizations
