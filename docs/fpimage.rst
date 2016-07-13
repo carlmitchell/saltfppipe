@@ -1,2 +1,8 @@
-The *FPImage* Class
-===================
+Image File Structure
+====================
+
+FITS Images
+-----------
+
+The FPImage Class
+-----------------
