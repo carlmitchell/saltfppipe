@@ -2,13 +2,7 @@ import numpy as np
 from astropy.io import fits
 from os.path import join
 from saltfppipe.fp_image_class import FPImage
-
-try:
-    import sys
-    sys.path.append('/home/cmitchell/code/voigtfit')
-    import voigtfit
-except:
-    None
+from saltfppipe import voigtfit
 
 
 def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):

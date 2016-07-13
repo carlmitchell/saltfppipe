@@ -21,15 +21,14 @@ from saltfppipe.gauss_fit import GaussFit
 from saltfppipe.sub_sky_rings import sub_sky_rings
 from saltfppipe.make_final_image import make_final_image
 from saltfppipe.solar_velocity_shift import solar_velocity_shift
-from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
 from saltfppipe.make_clean_map import make_clean_map
 from saltfppipe.mask_regions import mask_regions
 from saltfppipe.fp_image_class import FPImage
 
 do_velmap = True
 try:
-    sys.path.append('/home/cmitchell/code/voigtfit')
-    import voigtfit
+    from saltfppipe import voigtfit
+    from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
 except:
     do_velmap = False
 
