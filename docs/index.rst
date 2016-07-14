@@ -10,6 +10,11 @@ Welcome to the documentation for *saltfppipe*, a data reduction pipeline for the
 
 This documentation is a work in progress and is currently quite incomplete.
 
+.. note::
+	This software was developed primarily to reduce FP data taken in the medium-resolution mode and most of the testing has been with that data.
+	It has been used to reduce low-resolution data to some degree of success.
+	This code is **not** intended to be used on duel-etalon high-resolution data.
+
 Contents:
 ---------
 

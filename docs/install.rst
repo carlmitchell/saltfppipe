@@ -17,10 +17,11 @@ If you are using *saltfppipe* to produce H-alpha velocity fields, you'll want to
 
 If you are using *saltfppipe* only to produce data cubes, the module is unnecessary and you can skip ahead.
 
-In the cloned respository or unzipped directory, execute the following commands:
-	* ``$ cd voigtfit``
-	* ``$ make``
-	* ``$ cd ..``
+In the cloned respository or unzipped directory, execute the following commands::
+	
+	$ cd voigtfit
+	$ make
+	$ cd ..
 
 .. note::
 	*voigtfit* requires the *f2py* and *gfortran* packages to be installed
@@ -28,8 +29,9 @@ In the cloned respository or unzipped directory, execute the following commands:
 Installing the Package
 ----------------------
 
-To install the package, run the following command in the cloned repository or unzipped directory:
-	* ``$ python setup.py install``
+To install the package, run the following command in the cloned repository or unzipped directory::
+
+	$ python setup.py install
 
 This will install the *saltfppipe* package in your python packages library.
 

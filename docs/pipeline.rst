@@ -6,27 +6,32 @@ Starting Up
 
 The *saltfppipe* pipeline is designed to be run in the directory above a 'raw/' directory filled with images from the telescope.
 
-You can call it from an interactive environment like python or ipython with:
-	* ``>>> from saltfppipe import pipeline``
-	* ``>>> pipeline()``
+You can call it from an interactive environment like python or ipython with::
 
-Or you can call it directly from the command line with:
-	* ``$ python relative/path/to/saltfppipe/pipeline.py``
+	>>> from saltfppipe import pipeline
+	>>> pipeline()
+
+Or you can call it directly from the command line with::
 	
-You can also run the pipeline from another location in the directory structure (other than one directory above the 'raw/' image directory:
-	* ``>>> from saltfppipe import pipeline``
-	* ``>>> pipeline('relative/path/to/raw/')``
+	$ python relative/path/to/saltfppipe/pipeline.py
 	
-Or again from the command line with the path to the raw directory as a calling argument:
-	* ``$ python relative/path/to/saltfppipe/pipeline.py path/to/raw/)``
+You can also run the pipeline from another location in the directory structure (other than one directory above the 'raw/' image directory::
+	
+	>>> from saltfppipe import pipeline
+	>>> pipeline('relative/path/to/raw/')
+
+Or again from the command line with the path to the raw directory as a calling argument::
+	
+	$ python relative/path/to/saltfppipe/pipeline.py path/to/raw/)
 
 Creating the 'product/' directory
 ---------------------------------
 
 The first step of *saltfppipe* is to convert the raw images in 'raw/' to pre-processed images in a 'product/' directory.
 
-If you already have a 'product/' directory, you'll be greeted with the prompt:
-	* ``Product directory already exists. Recreate it? (y/n)``
+If you already have a 'product/' directory, you'll be greeted with the prompt::
+
+	Product directory already exists. Recreate it? (y/n)
 	
 If you downloaded the 'product/' directory directly from the SALT servers, you should answer **YES** to this question.
 The *saltfppipe* and *zSALT* packages create the product directory in a different way than the default SALT pre-processing.
@@ -154,6 +159,7 @@ Ghost Center Fitting
 --------------------
 
 Each bright object in a SALT FP image will have a reflection of itself appear at the other side of the image, reflected about a common center.
+This center's location is very important later in the data reduction process for finding the wavelength solution.
 This next part of the pipeline fits for this center by trying to identify star/ghost pairs in the images.
 In dense star fields, this works quite well.
 In sparse fields, this routine tends to require some personal intervention.
@@ -161,9 +167,14 @@ In sparse fields, this routine tends to require some personal intervention.
 .. image:: figs/ghosts/good.png
 
 In the dense star field around NGC 2280, the routine has identified dozens of star/ghost pairs and very accurately found the center.
-I press 'W' to approve this fit.
+I press 'Q' to approve this fit and move on to the ghost subtraction section.
 
-BAD GHOST FIT HERE
+.. image:: figs/ghosts_manual/bad.png
+
+In this sparse star field around NGC 1325, the routine has failed to find the ghost center, so I press 'W' to flag the center as bad.
+The pipeline will not proceed without a good center fit.
+When this happens, it's best to try doing things manually.
+For that, use the `find_ghost_centers <functions.html#find-ghost-centers>`_ function.
 
 Flat-fielding
 -------------
