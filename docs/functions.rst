@@ -50,5 +50,4 @@ The calling keywords are:
 	  Must be an array-like object of length 2 containing the X and Y coordinates of your guess.
 	  No default value.
 
-.. note:: If you're locating pixels in SAOImage DS9, subtract 1 from both coordinates before using it in Python.
-Python indices begin at zero, while DS9 indices begin at 1.
+.. note:: If you're locating pixels in SAOImage DS9, subtract 1 from both coordinates before using it in Python. Python indices begin at zero, while DS9 indices begin at 1.
