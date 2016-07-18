@@ -32,7 +32,7 @@ class PlotFluxRatios:
         ax1.errorbar(np.arange(len(fluxratavg)),
                      fluxratavg, fluxratsig,
                      color="red", marker="s", linestyle="--")
-        plt.title("Press 'd' on a point to delete an" +
+        plt.title("Press 'd' on a point to delete an " +
                   "obviously bad star from the fit.\n" +
                   "Press 'r' to restore all previously deleted stars.\n" +
                   "Press 'a' to accept the fit.")
