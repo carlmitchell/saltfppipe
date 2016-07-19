@@ -360,7 +360,7 @@ Now two wavelength solutions are being fitted: one for points to the left of tha
 This feature should only be used if there's a very clear break in your wavelength solution.
 
 After pressing 'A' to accept the fit, the parameters of the solution will be output to the terminal.
-For example, I recieve the following::
+For example, I receive the following::
 
 	Solution 1: A = 6660.29266739, B = 0.125188184314, E = 0.0192245434506, F = 5582.20892795
 	Residual rms=0.196652743698 for 1 independent 4-parameter fits to 21 rings.
@@ -369,13 +369,157 @@ For example, I recieve the following::
 The wavelength solution for each image is recorded in its image headers as the keywords 'FPWAVE0' and 'FPCALF'.
 The 'FPWAVE0' keyword stores the combined value ``A + B*z + E*t`` and 'FPCALF' stores the value of ``F``.
 
+If you're having trouble fitting a correct wavelength solution, you can manually set the solution by editing these header keywords.
+
 The values for the residual RMS, number of rings, number of parameters, and number of independent fits are also stored in the image header keywords 'FPCALRMS', 'NCALRING', 'NCALPARS', and 'NCALFITS'.
 
 Sky Ring Subtraction
 --------------------
 
+Now that you've used those pesky sky rings to fit for a wavelength solution, they've got to go!
+This is probably the most complicated part of the pipeline and there's some more interactive plots involved.
+
+.. image:: figs/subsky/start.png
+
+The top two panels you'll see are similar to the plots you saw in the wavelength calibration section -- plots of median-subtracted images and azimuthally averaged radial intensity profiles.
+Now, however, the radial intensity profiles have been converted from radius space to wavelength space using your wavelength solution.
+Known night sky emission lines are denoted by vertical red or blue lines on this plot.
+
+The pipeline attempts to fit a sum of Gaussian functions to this profile, with the Gaussians centered on each of the known emission lines.
+This fitted attempt is plotted as a red curve.
+The bottom two plots show the median-subtracted image after subtracting the fitted profile and its radial intensity profile.
+
+In the above figure, you can see that the marked wavelengths are in roughly the correct positions, but the fit has failed to converge.
+I decide to add a "fake" wavelength by pressing 'E' at about 6572 Angstroms.
+
+.. image:: figs/subsky/fake.png
+
+You can see that while there's now an unphysical line included in the fit (with a negative intensity!), the fit does a fantastic job.
+In my experience, these types of unphysical lines are often necessary to force a fit to converge.
+I am happy with this fit, so I press 'R' to save the fit and 'D' to move on to the next image.
+
+When you press 'D' to move on, the fitted rings are subtracted from the image and the image is saved and closed.
+
+.. image:: figs/subsky/off_edge.png
+
+In this image, a sky ring is outside the range of the image's wavelengths, but is likely still bleeding emission into the center of the image.
+I can press 'W' over the vertical red line to add it to the fit.
+
+.. image:: figs/subsky/off_edge_added.png
+
+The line has been added, but I'm still unsatisfied with the fit.
+The sharp increase in intensity at the center of the image is likely due more to the galaxy than the night sky line.
+I don't want to subtract the galaxy's emission.
+For scenarios like this (which are hopefully rare), there is a manual ring fitting mode available.
+I remove the ring I added by pressing 'S' and then I press 'X' to enter the manual mode.
+
+.. image:: figs/subsky/manual.png
+
+In manual mode, you can adjust the height and width of a single line.
+One of the lines is selected (purple) and the selected line can be cycled by pressing 'Z'.
+I press 'E' to add the known 6604 line back to the fit, and the selected line automatically shifts to this newly added line.
+
+.. image:: figs/subsky/manual_added.png
+
+I want to adjust the line at 6596 Angstroms first, as it's currently too wide, so I press 'Z' to cycle to that line.
+
+.. image:: figs/subsky/manual_cycled.png
+
+The 'Q' and 'A' keys are used to increase or decrease the selected line's width.
+I press 'A' a few times to decrease the width of the line.
+
+.. image:: figs/subsky/manual_tightened.png
+
+Because the *integral* of the line is held fixed, decreasing the line's width increases the height of the line.
+The 'W' and 'S' keys are used to increase or decrease the selected line's strength.
+I press 'S' a few times to decrease the strength of the line.
+
+.. image:: figs/subsky/manual_decreased.png
+
+That's better! I repeat this process on some of the other lines to improve the overall fit.
+
+.. image:: figs/subsky/manual_adjusted.png
+
+Much better. I now cycle to the newly added line to adjust its fit.
+If at any time the adjustments I'm making are too large or too small, I can press 'C' or 'Z' to scale the size of the adjustments by a factor of 2.
+
+.. image:: figs/subsky/manual_final.png
+
+I've now adjusted the newly added line to a point where I think it has subtracted the night sky ring emission without subtracting from the galaxy.
+I'm pretty content with this fit, so I press 'R' to save it, then 'D' to move on to the next image.
+Note that when I press 'R', it returns me to the automatic plotting view rather than the manual mode.
+While the manual fit is no longer plotted, its parameters have been saved and it's save to move on.
+
+.. image:: figs/subsky/outside.png
+
+Here's another example where there's a real night sky line that's outside our image's wavelength range but is likely close enough to bleed into it.
+As before, I add it to the fit by pressing 'W' over the vertical red line.
+
+.. image:: figs/subsky/outside_added.png
+
+Unlike last time, this time I got a good fit by added this line.
+Time to save it (by pressing 'R') and move on (by pressing 'D').
+
+All that's left to do now is repeat this process for each image in your observation sequence.
+This can be a time-consuming task, but cleanly removing this night sky emission is an important task.
+With a bit of experience, this stage of the data reduction process gets a *lot* easier.
+
+.. note:: The parameters of the fitted and subtracted rings are saved in the image headers should you ever need them again. The header keywords 'SUBWAVE#', 'SUBINTY#', and 'SUBSIG#' record the wavelength, intensity, and Gaussian width of each subtracted line, where '#' is an index referring to the subtracted line (0, 1, 2, etc.).
+
 Data Cube Creation
 ------------------
 
+Once sky rings have been subtracted, it's time to create the final data cube!
+
+The pipeline will prompt you for a desired seeing FWHM in the terminal.
+The default value displayed will be equal to the worst seeing of all of your FP images.
+If you desire a larger FWHM (e.g. to increase signal to noise by convolving with a larger beam), you can enter it here.
+
+The code will then create a new directory for your data cube, called '(YourObject)_cube' and begin generating the data cube images there.
+For each image, an appropriate Gaussian convolution kernel will be created which will blur your images to the desired seeing and shift them using the shifts calculated earlier.
+These blurred images (and their uncertainties and wavelengths) will be written to the data cube directory.
+
+For more information about the images this step creates, see the section about the `FPImage <fpimage.html#the-fpimage-class>`_ class.
+
+Solar Velocity Shifting
+-----------------------
+
+This routine calls the IRAF task 'rvcorrect' to calculate the velocity of SALT towards or away from your object relative to the sun,
+then corrects the wavelengths in the data cube to adjust for the Doppler shift.
+
+This should require no user intervention.
+
 Velocity Map Fitting
 --------------------
+
+This step is only called if you have compiled the optional `voigtfit <install.html#building-the-optional-voigtfit-module>`_ module and should require no user intervention.
+The pipeline attempts to fit a double Voigt profile at each pixel of the data cube (currently this is hard-coded to be the H-alpha and [NII] 6583 lines).
+The parameters of the fit are saved as a set of FITS images in the data cube directory:
+
+	* continuum.fits -- The fitted continuum strength
+	* intensity.fits -- The fitted H-alpha intensity
+	* wave.fits -- The fitted central wavelength of the H-alpha line
+	* sigma.fits -- The fitted Gaussian width of the profile
+	* n2intensity.fits -- The fitted [NII] line intensity
+	* chi2.fits -- The reduced-chi-squared statistic of the fit
+	* dcontinuum.fits -- The uncertainty in the fitted continuum strength
+	* dintensity.fits -- The uncertainty in the fitted H-alpha intensity
+	* dsigma.fits -- The uncertainty in the fitted Gaussian width sigma
+	* dn2intensity.fits -- The uncertainty in the fitted [NII] intensity
+	* n2ratio.fits -- The ratio of the [NII] intensity to the H-alpha intensity
+	* velocity.fits -- The line-of-sight velocity at the pixel, assuming the wavelengths correspond to H-alpha emission
+	* dvelocity.fits -- The uncertainty in the fitted velocity
+
+Velocity Map Masking
+--------------------
+
+Finally, this step allows for a series of cutoffs to be made in the fitted velocity map to mask undesirable pixels.
+The currently supported cutoffs are:
+
+	* Minimum Signal-to-Noise Ratio (dIntensity / Continuum)
+	* Minimum Velocity
+	* Maximum Velocity
+	* Maximum Chi^2
+	* Maximum Relative Uncertainty in Sigma (dSigma / Sigma)
+	* Maximum Relative Uncertainty in Intensity (dIntensity / Intensity)
+

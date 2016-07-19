@@ -26,4 +26,4 @@ Contents:
    fpimage.rst
    functions.rst
 
-This page was last updated by Carl Mitchell on 12 July 2016.
+This page was last updated by Carl Mitchell on 19 July 2016.
