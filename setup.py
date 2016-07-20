@@ -1,16 +1,18 @@
-from distutils.core import setup
-from setuptools import find_packages
+from numpy.distutils.core import setup
 from os.path import isfile, join
-from shutil import copyfile
 
+
+# Janky way to install the voigtfit module
 if isfile(join('voigtfit', 'voigtfit.so')):
-    copyfile(join('voigtfit', 'voigtfit.so'),
-             join('saltfppipe', 'voigtfit.so'))
+    df = [('', [join('voigtfit', 'voigtfit.so')])]
+else:
+    df = []
 
 setup(name='saltfppipe',
       version='0.0.1',
       description='SALT Fabry-Perot Data Reduction Software',
       author='Carl J. Mitchell',
       author_email='cmitchell@physics.rutgers.edu',
-      packages=find_packages()
+      packages=['saltfppipe'],
+      data_files=df
       )

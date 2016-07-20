@@ -27,7 +27,7 @@ from saltfppipe.fp_image_class import FPImage
 
 do_velmap = True
 try:
-    from saltfppipe import voigtfit
+    import voigtfit
     from saltfppipe.fit_velmap import fit_velmap_ha_n2_mode
 except:
     do_velmap = False
