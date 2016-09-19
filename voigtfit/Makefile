@@ -1,8 +1,3 @@
-all: voigtfit.so
-
-install: voigtfit.so
-	cp voigtfit.so /home/cmitchell/anaconda2/bin/
-
 voigtfit.so: voigtfit.f95 evoigt.o mrqfit.o gaussj.o
 	f2py -c -m voigtfit voigtfit.f95 evoigt.o mrqfit.o gaussj.o
 

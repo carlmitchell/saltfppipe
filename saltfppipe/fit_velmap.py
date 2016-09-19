@@ -61,7 +61,6 @@ def fit_velmap_ha_n2_mode(fnlist, outdir, clobber=False):
     # Loop over pixels
     for y in range(images[0].ysize):
         for x in range(images[0].xsize):
-
             # Display the "progress bar" if appropriate
             if np.any(np.logical_and(x == progX, y == progY)):
                 print ("Velocity map approximately " +
