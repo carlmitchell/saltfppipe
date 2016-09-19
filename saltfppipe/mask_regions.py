@@ -9,9 +9,10 @@ def mask_circle(array, par):
     xgrid, ygrid = np.meshgrid(np.arange(array.shape[1])+1,
                                np.arange(array.shape[0])+1)
     rad2grid = (xgrid-par[0])**2+(ygrid-par[1])**2
-    array[rad2grid < par[2]**2] = 1
 
-    return array
+    mask = rad2grid < par[2]**2
+
+    return mask
 
 
 def mask_box(array, par):
@@ -63,9 +64,7 @@ def mask_box(array, par):
     b = v1y-m*v1x
     mask = np.logical_and(mask, ygrid > m*xgrid+b)
 
-    array[mask] = 1
-
-    return array
+    return mask
 
 
 def mask_ellipse(array, par):
@@ -77,28 +76,12 @@ def mask_ellipse(array, par):
     radgrid = np.sqrt((xgrid-par[0])**2+(ygrid-par[1])**2)
     newxgrid = radgrid*np.cos(anglegrid)
     newygrid = radgrid*np.sin(anglegrid)
-    array[(newygrid/par[3])**2+(newxgrid/par[2])**2 < 1] = 1
+    mask = (newygrid/par[3])**2+(newxgrid/par[2])**2 < 1
 
-    return array
+    return mask
 
 
-def mask_regions(imagepath, regionpath):
-    """Adds the ds9 regions from a specified region file to the bad pixel mask
-    of an image.
-
-    The region file should be of the kind output by ds9 (region->save regions)
-    with the following modes selected:
-    format: Anything other than 'XML' or 'X Y'
-    coordinate system: 'image'
-
-    Currently this code only supports the following region types:
-    box, ellipse, circle
-
-    Inputs:
-    imagepath -> String, path to an image
-    regionpath -> String, path to a region file
-
-    """
+def parse_region_file(regionpath):
 
     # Open and parse the region file
     infile = open(regionpath)
@@ -171,18 +154,43 @@ def mask_regions(imagepath, regionpath):
                 line[j] = float(line[j])
             par.append(line[1:])
 
+    infile.close()
+
+    return shapes, par
+
+
+def mask_regions(imagepath, regionpath):
+    """Adds the ds9 regions from a specified region file to the bad pixel mask
+    of an image.
+
+    The region file should be of the kind output by ds9 (region->save regions)
+    with the following modes selected:
+    format: Anything other than 'XML' or 'X Y'
+    coordinate system: 'image'
+
+    Currently this code only supports the following region types:
+    box, ellipse, circle
+
+    Inputs:
+    imagepath -> String, path to an image
+    regionpath -> String, path to a region file
+
+    """
+
+    shapes, par = parse_region_file(regionpath)
+
     # Open the input image and run it through the various region masks
     im = FPImage(imagepath, update=True)
     for i in range(len(shapes)):
         if shapes[i] == "circle":
+            im.badp[mask_circle(im.badp, par[i])] = 1
             im.badp = mask_circle(im.badp, par[i])
         elif shapes[i] == "box":
-            im.badp = mask_box(im.badp, par[i])
+            im.badp[mask_box(im.badp, par[i])] = 1
         elif shapes[i] == "ellipse":
-            im.badp = mask_ellipse(im.badp, par[i])
+            im.badp[mask_ellipse(im.badp, par[i])] = 1
 
     # Close files
-    infile.close()
     im.close()
 
     return
