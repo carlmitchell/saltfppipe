@@ -56,5 +56,6 @@ The following is a list of packages on which *saltfppipe* depends. Several of th
 	* `astropy <http://www.astropy.org/>`_
 	* `iraf <http://iraf.noao.edu/>`_
 	* `pyraf <http://www.stsci.edu/institute/software_hardware/pyraf>`_
+	* `pysalt <http://pysalt.salt.ac.za/>`_ - Note: Use the "nightly build", not v0.47!
 	* `zsalt <https://github.com/crawfordsm/zSALT>`_
 	* `photutils <https://photutils.readthedocs.io/en/latest/>`_
